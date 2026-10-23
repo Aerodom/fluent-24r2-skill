@@ -1,5 +1,5 @@
 ---
-name: fluent-24r2-case-debug
+name: fluent-24r2-skill
 description: ANSYS Fluent 2024R2 (v242) end-to-end workflow — classify the physics, pick a meshing route, build the case with journals or PyFluent, drive batch and resumable long runs, post-process offline from .h5, and deliver a double-clickable .wbpj project. Covers compressible transient (explosion/shock), VOF multiphase (leakage/splashing), species transport (gas dispersion) and single-phase heat transfer. Use for .jou journals, fluent.exe command-line runs, PyFluent scripts, Fluent Meshing routes, autosave/resume watchdogs, offline .cas.h5/.dat.h5 post-processing, .wbpj generation, and failures such as gas not venting, divergence or hangs, TUI "invalid command", leftover processes, license or GPGPU errors, un-resumable autosave, and field data that will not export. Ships a case library under cases/ — search it before you start.
 agent_created: true
 ---
@@ -378,7 +378,7 @@ The full table (six categories: autosave / resume / memory / processes / multiph
 | `tui-commands.md` | All verified commands, interactive answer sequences, deprecated-command table, VOF/species enabling chains, contour and export chains |
 | `case-setup-checklist.md` | Panel-by-panel checklist (three branches: compressible transient / VOF / species transport), every item with a "why" |
 | `meshing-routes.md` | Meshing route decision tree: Fluent Meshing GUI / scripted gmsh / reuse an existing mesh; the three fake CGNS import crashes; the zone-ID reshuffle trap after re-importing a mesh |
-| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization / I PyFluent API / J density-based shock / K external-mesh SIGSEGV / L reports returning `None` / M geometry shrunk 1000× / N non-ASCII path / O mesh-size unit / P `solid` volume region / Q silent non-overwrite) |
+| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization / I PyFluent API / J density-based shock / K external-mesh SIGSEGV / L reports returning `None` / M geometry shrunk 1000× / N non-ASCII path / O mesh-size unit / P `solid` volume region / Q silent non-overwrite / R argument names and value shapes) |
 | `auto-resume-and-guard.md` | Long-run launcher, segmented resume, watchdog deployment, encoding traps, Task Scheduler flashing windows and blocking supervision |
 | `offline-h5-postprocessing.md` | ⭐ Offline `.h5` reading: structure paths, CSR expansion, face-field basis, `SV_VOF` semantics, degenerate-metric detection, footprint rendering |
 | `offline-cells-and-species.md` | ⭐ Offline post-processing (species): mesh/field separation, back-computing centroids and volumes from `c0/c1`, mass → mole fraction, initialization traps, `NaN ≠ 0` |
@@ -396,10 +396,11 @@ in a few minutes. Two criteria: **continuity ≤2 %** (insensitive to the mesh, 
 errors) and **peak-ratio ±10 %** (sensitive to the mesh). Current status and measured numbers
 are in `tests/smoke/README.md`.
 
-Three things to remember before running it, or you will hit fake failures that look like
-"the format is broken": **the working directory must be a pure-ASCII path** (a Chinese user path
-makes the Meshing CAD importer report "Error in CAD Import", which is completely misleading);
-**mesh sizes are expressed in the unit the STEP file declares (millimetres)**; and **the volume
-region is created as `solid` and must be switched to `fluid` first**.
+Three things used to be footnotes you had to memorise — a 1000× geometry shrink, a non-ASCII
+path, mesh sizes read in the file's declared unit — and four more sat underneath them. All seven
+are now enforced by guards in `tests/smoke/_common.py`, which stop the run and explain the cause
+instead of letting Fluent produce a plausible wrong answer. **When you edit the smoke test, do not
+route around those guards** — routing around them reinstalls the trap (see `troubleshooting.md`
+M–R).
 
 **Scripts `scripts/`** — see §4.4.

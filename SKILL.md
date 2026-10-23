@@ -1,5 +1,5 @@
 ---
-name: fluent-24r2-case-debug
+name: fluent-24r2-skill
 description: ANSYS Fluent 2024R2 (v242) 通用工作流：物理判型 → 网格路线 → journal/PyFluent 搭案例 → 脚本化自动跑批与长跑续算 → 离线后处理取数 → 交付可双击打开的 .wbpj 工程。适用于可压缩瞬态（爆炸/冲击波/高压泄放）、VOF 多相（泄漏/喷溅/自由液面）、组分输运（有毒可燃气体扩散）、单相流动与传热四类算例。当任务涉及编写 .jou journal、命令行直驱 fluent.exe、PyFluent 脚本、Fluent Meshing 网格路线选择、autosave 续算与看门狗、离线读 .cas.h5/.dat.h5 做后处理、生成 Workbench .wbpj 工程，或排查"气体不泄放 / 求解发散卡死 / TUI 报 invalid / 进程残留占内存 / license 或 GPGPU 报错 / autosave 无法续算 / 场数据导不出"等故障时使用。内置案例库 cases/，动手前先检索。 English translation lives in SKILL.en.md. Applies to ANSYS Fluent 2024R2 journal writing, PyFluent scripting, Fluent Meshing route selection, autosave and resume watchdogs, offline .cas.h5 / .dat.h5 post-processing, and double-clickable .wbpj Workbench deliverables.
 agent_created: true
 ---
@@ -390,7 +390,7 @@ yes
 | `tui-commands.md` | 全部已验证命令、交互式答案序列、废弃命令对照、VOF/组分启用链路、云图与导出链路 |
 | `case-setup-checklist.md` | 逐面板检查单（三分支：可压缩瞬态 / VOF / 组分输运），每项带"为什么" |
 | `meshing-routes.md` | 网格路线决策树：Fluent Meshing GUI / gmsh 脚本化 / 复用既有网格；CGNS 导入的三个假崩溃；重导网格后 zone ID 重排陷阱 |
-| `troubleshooting.md` | 故障 → 根因 → 处理（A 启动 / B 物理 / C 发散 / D 段错误 / E journal / F 进程 / G 网格 / H 栅格化 / I PyFluent 接口 / J 密度基激波 / K 外部网格 SIGSEGV / L 报表返回 None / M 几何单位缩 1000 倍 / N 非 ASCII 路径 / O 网格尺寸单位 / P 体区域是 solid / Q 写文件静默不覆盖） |
+| `troubleshooting.md` | 故障 → 根因 → 处理（A 启动 / B 物理 / C 发散 / D 段错误 / E journal / F 进程 / G 网格 / H 栅格化 / I PyFluent 接口 / J 密度基激波 / K 外部网格 SIGSEGV / L 报表返回 None / M 几何单位缩 1000 倍 / N 非 ASCII 路径 / O 网格尺寸单位 / P 体区域是 solid / Q 写文件静默不覆盖 / R 参数名与取值形态） |
 | `auto-resume-and-guard.md` | 长跑启动件、分段续算、看门狗部署、编码陷阱、计划任务闪窗与阻塞式监护 |
 | `offline-h5-postprocessing.md` | ⭐ 离线读 `.h5`：结构路径、CSR 展开、面场口径、`SV_VOF` 语义、退化指标识别、足迹渲染 |
 | `offline-cells-and-species.md` | ⭐ 离线后处理（组分）：网格/场分离、由 `c0/c1` 反算形心体积、质量→摩尔分数、初始化陷阱、`NaN ≠ 0` |
@@ -408,9 +408,9 @@ yes
 两条判据：**连续性 ≤2%**（对网格不敏感，专抓设置错误）+ **峰值比 ±10%**（对网格敏感）。
 当前状态与实测数字写在 `tests/smoke/README.md`。
 
-跑之前记住三件事，否则会撞上伪装成"格式坏了"的假故障：
-**工作目录必须是纯 ASCII 路径**（中文用户名会让 Meshing 的 CAD 导入器报
-"Error in CAD Import"，措辞完全误导）；**网格尺寸用 STEP 声明单位（毫米）**；
-**体区域建出来是 `solid`，要先改 `fluid`**。
+它踩过的七个坑（几何缩 1000 倍 / 非 ASCII 路径 / 网格尺寸单位 / 体区域是 `solid` /
+`tui.file` 不可用 / 参数名与取值形态 / 写文件静默不覆盖）现在全部由
+`tests/smoke/_common.py` 里的守卫**主动拦下并说明原因**，不需要事先记住。
+但改脚本时**别绕开这些守卫** —— 绕开就是把坑原样装回去（对应 `troubleshooting.md` M–R）。
 
 **脚本 `scripts/`** —— 见 §4.4。

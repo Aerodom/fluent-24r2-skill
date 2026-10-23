@@ -447,8 +447,9 @@ gmsh.model.occ.addBox(0, 0, 0, 1.0, 0.1, 0.02)
   **不要**去改声明，改了反而错 1000 倍。
 - 单位不能靠"我设了"来相信，要读回文件验证：解析 `SI_UNIT` 拿到声明，
   取全部 `CARTESIAN_POINT` 的最大值，两者相乘才是物理尺寸。
-  `tests/smoke/make_geometry.py` 的 `step_physical_extent()` 就是干这个的，
-  偏差超过 1% 直接返回非 0。
+- **已固化为代码**：`tests/smoke/_common.py` 的 `step_extent()` 负责读回，
+  `make_geometry.py` 用它的结果做断言，偏差超过 1% 直接返回非 0。
+  下游 `make_mesh.py` 也复用同一个读数来换算网格尺寸（见 O 节）。
 
 **判别捷径**：任何"几何能导入、网格能生成、但雷诺数和预期差三个数量级"的场合，
 先量一下包围盒，别先怀疑网格。
@@ -473,9 +474,10 @@ are properly configured for the format using the CAD Configuration Manager utili
 
 **处置**：
 
-- Meshing 的工作目录必须是**纯 ASCII 路径**。`tests/smoke/make_mesh.py` 里做了两件事：
-  路径非 ASCII 就自动退到系统临时目录，并在 `work.isascii()` 检查失败时直接给出可读的
-  报错而不是让它走到 CAD 导入再报假错。
+- Meshing 的工作目录必须是**纯 ASCII 路径**。**已固化为代码**：
+  `tests/smoke/_common.py` 的 `require_ascii()`，四个脚本都在**启动 Fluent 之前**
+  调用它（起 Fluent 要一分钟，不值得为一条路径检查白等）；`default_work()` 则在脚本
+  自身路径含非 ASCII 时自动退到系统临时目录。
 - 判定方法：`str(path).isascii()` 为 `False` 就换路径，别去查 CAD Reader。
 - 注意这和"求解器读 `.msh.h5`"是两回事：求解器对路径宽容得多，只有 **Meshing 的
   CAD 翻译器**（Workbench→FLTG 转换）这一步挑路径。
@@ -505,9 +507,16 @@ running ANSYS TGrid CADToTGridConverter FAILED!
 
 **处置**：
 
-- 尺寸常量用**毫米**表达，并在变量名上写死单位（`MIN_SIZE_MM`、`MAX_SIZE_MM`），
-  防止下一个人"顺手改成米"。
-- 开工前先看转录里的 `length unit = [...]`，再决定数值量级。
+- 尺寸**统一用米表达（物理量）**，传参前按文件声明单位换算 —— 不要直接写"毫米数值"，
+  否则换一份声明为米的 STEP 就整体差 1000 倍：
+
+  ```python
+  _, scale = common.step_unit(step)          # 声明 mm -> 1e-3；声明 m -> 1.0
+  min_size = common.size_in_file_unit(1.5e-3, scale)   # mm 文件得 1.5，m 文件得 1.5e-3
+  ```
+
+  **已固化为代码**：`_common.size_in_file_unit()`，`make_mesh.py` 已按此写法。
+- 开工前先看转录里的 `length unit = [...]`，再核对数值量级。
 - 判据：日志里 `minMeshSize` 应该和你想要的物理尺寸同量级。
   想 1.5 mm，日志就该是 `1.5e-03` 左右；出现 `1.5e-06` 就是差 1000 倍。
 - 万一已经挂死：直接杀 `fluent.exe` / `fl_mpi2420.exe`，别等它自己退。
@@ -545,6 +554,10 @@ if solids:
 `N polyhedra cells, zone id: nn` 前面那行 zone 列表的 type 列；
 是 `solid` 就先改了再谈物理。
 
+改完**必须复核** `list(cz.solid.keys())` 为空 —— 只改了一部分的话，报错会推迟到初始化，
+把真正的原因埋掉。**已固化为代码**：`tests/smoke/run_case.py` 的
+`force_fluid_cell_zones()` 改完立刻回读，残留 `solid` 直接退出。
+
 ---
 
 ## Q. `write_mesh` 遇到同名文件静默不覆盖（最阴的一个）
@@ -560,7 +573,7 @@ if solids:
 **这是本 skill 里最危险的一类故障**：它不报错，只是让你拿旧结果当新结果用，
 而且看起来完全合理（尺寸量级、量纲、收敛曲线都正常）。
 
-**处置**：
+**处置**（下面是手写等价物，实际代码里请直接用公共守卫）：
 
 ```python
 if os.path.exists(mesh):
@@ -573,5 +586,41 @@ if os.path.getmtime(mesh) < t0 - 2:
     raise SystemExit("写网格失败：mtime 没更新，拿到的是旧文件")
 ```
 
+**已固化为代码**：`tests/smoke/_common.py` 的 `fresh_write()`（先删 → 记时间 → 写 →
+三查），配合 `call_file()` 自动在 `settings.file` / `tui.file` 之间找可用实现。
+另外配了 `check_mesh_not_stale()`：网格比几何旧就拒绝开算 ——
+"这一次写成功了"和"下游用的是最新的"是两个问题，前者靠 `fresh_write`，后者靠它。
+
 **通用教训**：判断"文件类操作成功"永远要**三查** —— 存在、非空、**mtime 真的变了**。
-只查 `exists()` 等于没查。同类问题还有 `/file/export/ascii`、`/solve/report-files`。
+只查 `exists()` 等于没查。同类问题还有 `/file/export/ascii`、`/solve/report-files`、
+以及 `write_case_data`（`.cas.h5` 同名时同样静默跳过）。
+
+---
+
+## R. PyFluent 0.42.1 的参数名与取值形态（三个必踩的关键字）
+
+**现象**：方法确实存在、感觉文档也对，但一传参就报一堆看起来不相关的错：
+
+| 想做的事 | 错误写法 | 实际报错 | 正确写法 |
+|---|---|---|---|
+| 改 zone 类型 | `set_zone_type(zone_list=..., new_zone_type="fluid")` | `TypeError: ... unexpected keyword argument` | `new_type=` |
+| 取面最大值 | `facet_max(surface_names=..., field="x-velocity")` | `Unknown keyword 'field'`，紧接着 `'report-of' is a required argument` | `report_of=` |
+| 设入口速度 | `...momentum.velocity_magnitude.set_state(0.1)` | `AttributeError`（这个对象在当前规格下不存在） | `...momentum.velocity.set_state({"option": "value", "value": 0.1})` |
+
+**为什么 `velocity_magnitude` 会"消失"**：velocity-inlet 的
+`velocity_specification_method` 默认是 **Magnitude, Normal to Boundary**，此时暴露的是
+命名对象 `velocity` —— 它带 option，state 形如 `{"option": "value", "value": 0.1}`；
+`velocity_components` 存在但 **inactive**。切成 Components 规格后才会出现三个分量对象。
+所以"设速度"的代码必须按当前规格分支，不能写死一个属性名。
+
+**处置**：
+
+- 别凭印象写参数名。先 `getattr` 探一遍，或直接读报错里的 required argument 提示 ——
+  这两个报错（`Unknown keyword` + `'report-of' is a required argument`）其实已经把答案
+  说清楚了，只是分两条打出来容易看漏。
+- **设完读回**：从 `state` 里取 `value` 与目标值比对。状态没落盘时立刻报错，比拿到
+  一条"收敛得很漂亮"的错误曲线好得多。**已固化为代码**：`tests/smoke/run_case.py`
+  的 `set_inlet_velocity()`（先设 → 再 `get_state()` 复核 → 不符就退出）。
+- 场量报表（`facet_max` / `area_weighted_avg`）在**没有任何流场数据时是 inactive**，
+  未初始化就调会抛 `InactiveObjectError`。顺序必须是：先 `hybrid_initialize()`，
+  再问几何量（面积、坐标），最后设边界、正式初始化、迭代。

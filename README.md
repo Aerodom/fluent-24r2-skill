@@ -1,4 +1,4 @@
-# fluent-24r2-case-debug
+# fluent-24r2-skill
 
 > [English](README.en.md) | 简体中文
 
@@ -21,13 +21,13 @@
 
 ```bash
 # 用户级（对所有项目生效）
-git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-case-debug
+git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-skill
 
 # 或项目级
-git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-case-debug
+git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-skill
 ```
 
-Windows 下的默认路径是 `C:\Users\<用户名>\.workbuddy\skills\fluent-24r2-case-debug`。
+Windows 下的默认路径是 `C:\Users\<用户名>\.workbuddy\skills\fluent-24r2-skill`。
 
 装好后，涉及 journal / PyFluent / 后处理 / `.wbpj` / Fluent 故障排查的任务会自动命中本 skill。
 
@@ -51,7 +51,7 @@ cp SKILL.en.md SKILL.md        # 切到英文
 ## 结构
 
 ```
-fluent-24r2-case-debug/
+fluent-24r2-skill/
 ├── SKILL.md                      # 总说明：通用方法论 + 8 阶段流程 + 硬规则
 ├── SKILL.en.md                   # 英文全译版（与 SKILL.md 章节号一致）
 ├── cases/                        # 案例库（先查这里，再动手）

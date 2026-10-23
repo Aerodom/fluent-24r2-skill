@@ -79,8 +79,16 @@ def ratio_umax_over_umean(height=H, width=W, n_max=399, n_grid=401):
 
 def load_result(path):
     with io.open(path, encoding="utf-8") as f:
-        d = json.load(f)
-    return d.get("umax"), d.get("uavg_out"), d.get("u_in", U_IN)
+        return json.load(f)
+
+
+def print_mesh(mi):
+    """把 run_case 带出来的网格参数打出来 —— 判据偏差大小直接取决于它。"""
+    if not mi:
+        return
+    print("网格: 物理尺寸 %.3g ~ %.3g mm（STEP 声明单位 %s）/ %.1f MB"
+          % (mi.get("min_size_m", 0.0) * 1e3, mi.get("max_size_m", 0.0) * 1e3,
+             mi.get("step_declared_unit", "?"), (mi.get("mesh_bytes") or 0) / 1e6))
 
 
 def main():
@@ -97,7 +105,9 @@ def main():
 
     umax, uavg, uin = args.umax, args.uavg, args.uin
     if args.result:
-        umax, uavg, uin = load_result(args.result)
+        d = load_result(args.result)
+        umax, uavg, uin = d.get("umax"), d.get("uavg_out"), d.get("u_in", U_IN)
+        print_mesh(d.get("mesh_info"))
 
     r = ratio_umax_over_umean(args.height, args.width)
     print("几何: H=%.4g m, W=%.4g m, 高宽比=%.2f" % (args.height, args.width,

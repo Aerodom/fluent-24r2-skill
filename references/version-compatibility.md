@@ -27,6 +27,15 @@
 | 5 | **求解器默认值**（离散格式、亚松弛、Courant） | 新版本常改默认 | 显式写出每一项，不依赖默认；试跑第 1 步的 `Courant` 与残差量级与卡片比对 |
 | 6 | **PyFluent API**（`session.tui` / `field_info` / settings 树） | Python 层迭代比 TUI 快 | `python -c "import ansys.fluent.core as p; print(p.__version__)"`，与上表比对；差异大就退回纯 journal 驱动（§4.1 形态 A） |
 
+> **2024R2 / PyFluent 0.42.1 的 deprecation 提示（不影响结果，但别当成噪音）**
+>
+> `session.mesh.check()` 和 `session.results.report.*` 每次调用都会打印
+> `'mesh' is deprecated. Use 'settings.mesh' instead.` /
+> `'results' is deprecated. Use 'settings.results' instead.`。
+> 两个别名在 0.42.1 上**都能正常工作**，冒烟测试就是用它们跑通的，所以没改。
+> 换版本时如果这两行**消失或变成异常**，说明别名已被删除 —— 那时把调用方统一改成
+> `settings.` 前缀即可，逻辑不用动。这也是上表第 6 行的具体例子。
+
 ## 3 版本策略（写死，避免每次重新讨论）
 
 1. **只承诺 2024R2**。其他版本能跑通是运气，不是契约；`description` 与 README 不得写成"适用于任意版本"。

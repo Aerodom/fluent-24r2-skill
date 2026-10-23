@@ -44,6 +44,11 @@ into a general workflow + a case library for publication.
   measurement. **Verified end to end on this machine**: geometry → mesh → solve →
   report, with two criteria (continuity 0.07 %, shape −5.9 %). It is also what
   uncovered the seven problems listed under "Discovered during the smoke test".
+- `tests/smoke/_common.py` — shared guards for the smoke test. Every function in it
+  exists because a specific failure actually happened; the mapping is a table in
+  `tests/smoke/README.md` and each guard is cross-referenced from
+  `troubleshooting.md`. Kept standard-library-only on purpose, so a path or unit
+  problem is caught *before* Fluent spends a minute starting up.
 - `references/version-compatibility.md` — what is actually verified
   (2024R2 / v242) and what must be re-tested on any other release.
 - `LICENSE` — MIT, © 2026 Yan. Plus a disclaimer in both READMEs:
@@ -51,6 +56,10 @@ into a general workflow + a case library for publication.
 
 ### Changed
 
+- The skill is named **`fluent-24r2-skill`**: directory name, `name:` in both
+  `SKILL.md` / `SKILL.en.md` front matter, and every path in the READMEs. The old name
+  carried `case-debug`, which described the original private working set rather than what
+  this now is. Installing under the old name keeps working, but the two will not merge.
 - Renamed one reference file to a tool-neutral name (`footprint-contours.md`), and
   removed the name of the downstream consumer product from the whole repository.
 - `status` in case-card front matter is now a **controlled vocabulary**
@@ -83,7 +92,22 @@ into a general workflow + a case library for publication.
   reader (see `troubleshooting.md` K) and the working path is gmsh → STEP → Fluent
   Meshing → native `.msh.h5`.
 
-### Discovered during the smoke test (documented, not yet fixable from the skill side)
+### Guards — the seven pitfalls are now enforced by code, not by prose
+
+Documenting a trap is not the same as preventing it. Each row below was a real failure
+during the smoke test; each is now a function that fails loudly and says why.
+
+| Pitfall | Guard | Where it fires |
+|---|---|---|
+| gmsh writes STEP in millimetres with unscaled coordinates (geometry 1000× too small) | `step_unit()` / `step_extent()` read the file back and compute the physical extent | `make_geometry.py` asserts <1 % deviation; `make_mesh.py` reuses the same reading |
+| non-ASCII working directory breaks the CAD importer | `require_ascii()` | all four scripts, **before** Fluent starts |
+| mesh sizes are interpreted in the file's declared unit | `size_in_file_unit()` converts from physical metres | `make_mesh.py`, before handing sizes to Meshing |
+| volume region is created as `solid` | `force_fluid_cell_zones()` converts **and re-reads** to confirm | `run_case.py`, right after `read_case` |
+| `m.tui.file.*` unavailable in 0.42.1, while `write_mesh` only exists there in a meshing session | `call_file()` probes `settings.file` and `tui.file` and tries both call forms | every file write |
+| argument names and value shapes (`new_type`, `report_of`, `velocity` as an option object) | `set_inlet_velocity()` writes, reads the state back and compares | `run_case.py`, when setting the inlet |
+| `write_mesh` / `write_case_data` silently decline to overwrite | `fresh_write()` deletes first, then checks exists / non-empty / **mtime actually moved**; `check_mesh_not_stale()` refuses to solve on a mesh older than the geometry | every file write; before solving |
+
+### Discovered during the smoke test (documented; anything a script can check is now guarded)
 
 - **External mesh readers segfault.** `read-case` on a gmsh 2.2 mesh (quads *and*
   triangles) or on CGNS dies with `SIGSEGV` right after `Building... mesh`, while the

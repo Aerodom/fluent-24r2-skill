@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""冒烟测试第 1 步：生成矩形管道 STEP 几何（gmsh，无需 Fluent 许可证）。
+"""冒烟测试第 1 步：生成矩形管道 STEP 几何（gmsh，不需要 Fluent 许可证）。
 
 为什么用 STEP 而不是 STL：
     Fluent Meshing 的 watertight 工作流**不接受面片格式**，会直接报
@@ -19,53 +19,26 @@
     Re 从 222 掉到 0.2，入口段长度远大于管长，出口根本没发展，
     `u_max/U_mean` 判据永远对不上。
 
-    正确做法是 `gmsh.option.setString("Geometry.OCCTargetUnit", "M")`
-    （放在 `model.add` 之前），gmsh 会把数值乘 1000 再写，声明仍是毫米，
-    Fluent 读进来正好是米。三种组合的实测对照：
-
-        | 设置                        | 文件内最大坐标 | 声明   | Fluent 实际得到 |
-        |-----------------------------|---------------|--------|----------------|
-        | 默认                        | 1.0           | MILLI  | 0.001 m  ✗     |
-        | OCCTargetUnit="M"           | 1000.0        | MILLI  | 1.0 m    ✓     |
-        | 默认 + 自己把尺寸乘 1000     | 1000000.0     | MILLI  | 1000 m   ✗     |
-
+    正确做法是 `Geometry.OCCTargetUnit = "M"`（放在 `model.add` 之前），
+    gmsh 把数值乘 1000 再写，声明仍是毫米，Fluent 读进来正好是米。
     **不要**去改文件里的 `MILLI METRE` 声明 —— 数值已经同步放大，改声明就错了。
-    导出后请用本脚本的 `step_physical_extent()` 复核，别靠肉眼。
+
+    三种组合的实测对照见 `_common.step_unit()` 的 docstring。
+    本脚本导出后会用 `_common.step_extent()` 读回复核，不靠肉眼。
 
 用法：
     python make_geometry.py [输出目录]
+      - 不传时用脚本旁的 work/；若该路径含非 ASCII，自动退回系统临时目录
+      - 输出目录必须是纯 ASCII（Meshing 的 CAD 导入器要求，见 _common.require_ascii）
 """
-import io
 import os
-import re
 import sys
 
+import _common as common
 import gmsh
 
 L, H, W = 1.0, 0.1, 0.02      # 米
 STEP_TARGET_UNIT = "M"        # 必须是 M：见上面的单位陷阱
-
-PAT_POINT = re.compile(r"CARTESIAN_POINT\('[^']*',\s*\(([^)]*)\)")
-PAT_UNIT = re.compile(r"SI_UNIT\(([^)]*)\)")
-
-
-def step_physical_extent(path):
-    """读回 STEP，返回 (声明单位, 文件内最大坐标, 换算后的物理最大尺寸 m)。
-
-    这是本脚本唯一诚实的自检：不信任"我设了单位"，只信文件里写了什么。
-    """
-    txt = io.open(path, encoding="utf-8", errors="replace").read()
-    units = [u for u in PAT_UNIT.findall(txt) if "METRE" in u]
-    declared = units[0] if units else "?"
-    scale = 1e-3 if "MILLI" in declared else 1.0
-    nums = []
-    for grp in PAT_POINT.findall(txt):
-        vals = [float(v) for v in grp.split(",") if v.strip()]
-        if len(vals) == 3:
-            nums.append(max(vals))
-    if not nums:
-        raise RuntimeError("STEP 里没找到三维 CARTESIAN_POINT：%s" % path)
-    return declared, max(nums), max(nums) * scale
 
 
 def build(out_dir):
@@ -85,24 +58,26 @@ def build(out_dir):
 
 
 def main():
-    out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "work")
+    out = sys.argv[1] if len(sys.argv) > 1 else common.default_work(__file__)
+    common.require_ascii(out, "输出目录")      # 坑 2：先于 gmsh 就拦下
     os.makedirs(out, exist_ok=True)
+
     path = build(out)
-    declared, raw, physical = step_physical_extent(path)
+    ext = common.step_extent(path)
 
     print("[ok] STEP: %s (%d bytes)" % (path, os.path.getsize(path)))
     print("     几何 L=%.3g H=%.3g W=%.3g（高宽比 %.1f）" % (L, H, W, H / W))
     print("     声明单位=%s  文件内最大坐标=%.6g  换算物理尺寸=%.6g m"
-          % (declared, raw, physical))
+          % (ext["declared"], ext["max_coord"], ext["extent_m"]))
 
-    err = abs(physical - L) / L
+    err = abs(ext["extent_m"] - L) / L
     if err > 0.01:
         print("[FAIL] 物理尺寸应为 %.4g m，实际 %.6g m（差 %.1f%%）"
-              % (L, physical, err * 100))
+              % (L, ext["extent_m"], err * 100))
         print("       多半是 Units 陷阱：检查 OCCTargetUnit 是否在 model.add 之前设为 M")
         return 1
-    print("[ok] 单位自检通过（偏差 %.3f%%）" % (err * 100))
+    print("[ok] 单位自检通过（偏差 %.3f%%，声明单位 %s 已按 %.0e m 换算）"
+          % (err * 100, ext["declared"], ext["scale_to_m"]))
     return 0
 
 

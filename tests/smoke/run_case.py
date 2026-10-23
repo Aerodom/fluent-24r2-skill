@@ -15,11 +15,15 @@
     -------------------------------- --------------------
     wall:1:001                                       0.002
 
-另外两个关键字坑：
+另外三个关键字坑（都已按实测签名写死，别凭印象改）：
     - `facet_max` 的场变量参数叫 **`report_of`**，叫 `field` 会报
       "Unknown keyword 'field'" 并忽略（然后报 'report-of' is a required argument）。
     - `area_weighted_avg` 在没有流场数据时是 **inactive**，未初始化前调会抛
-      InactiveObjectError。
+      InactiveObjectError —— 所以先 hybrid_initialize 一次再问几何量。
+    - `set_zone_type` 的关键字是 **`new_type`**（不是 `new_zone_type`）。
+    - velocity-inlet 默认规格（Magnitude, Normal to Boundary）下暴露的是
+      **`velocity`**（带 option 的命名对象，state 形如
+      {"option": "value", "value": 0.1}），没有 `velocity_magnitude`。
 
 进出口识别：6 个面 zone 中，**两个最小面积的必然是端面**
 （0.1x0.02 = 0.002 m²；侧壁 0.02、上下壁 0.1，三者相差 10 倍，不会认错）。
@@ -28,13 +32,14 @@
 
 用法：
     python run_case.py [工作目录]
-依赖：ansys-fluent-core；工作目录见 make_mesh.py 的 ASCII 路径要求。
+依赖：ansys-fluent-core；工作目录必须是纯 ASCII（脚本会在启动 Fluent 前检查）。
 """
 import json
 import os
 import re
 import sys
 
+import _common as common
 import ansys.fluent.core as pyfluent
 
 U_IN = 0.1          # 入口均匀速度 m/s
@@ -119,16 +124,70 @@ def pick_end_zones(areas):
     return [z for z, _ in ordered[:2]], [z for z, _ in ordered[2:]]
 
 
+def force_fluid_cell_zones(solver):
+    """坑 4：watertight 工作流建出来的体区域默认是 **solid**。
+
+    日志里是 `solid aluminum`。直接给它贴 velocity-inlet 会报
+
+        "Flow boundary zone found adjacent to solid zone.
+         This problem MUST be fixed before solution proceed"
+
+    改完之后**必须复核**：`set_zone_type` 若不生效（或只改了一部分），
+    报错会推迟到初始化阶段，掩埋真正的原因。
+    """
+    cz = solver.settings.setup.cell_zone_conditions
+    solids = list(cz.solid.keys())
+    if not solids:
+        print("[ok] 没有 solid 体区域（已是 fluid）")
+        return []
+    cz.set_zone_type(zone_list=solids, new_type="fluid")
+    left = list(cz.solid.keys())
+    if left:
+        raise SystemExit(
+            "[FAIL] 体区域仍是 solid：%s\n"
+            "       不改会在初始化时报 'Flow boundary zone found adjacent to solid zone'。"
+            % left)
+    print("[ok] cell zone solid -> fluid：%s（现有 fluid zone %d 个）"
+          % (solids, len(list(cz.fluid.keys()))))
+    return solids
+
+
+def set_inlet_velocity(solver, zone, value):
+    """坑 6：velocity-inlet 在默认规格下暴露的是 `velocity` 这个 option 对象。
+
+    设完读回校验 —— 状态没落盘时提前报错，比拿到一条"收敛得很漂亮"的错误曲线好。
+    """
+    mom = solver.settings.setup.boundary_conditions.velocity_inlet[zone].momentum
+    try:
+        mom.velocity.set_state({"option": "value", "value": value})
+        route = "velocity(option=value)"
+    except Exception:  # noqa: BLE001
+        mom.velocity_magnitude.set_state(value)
+        route = "velocity_magnitude"
+    state = mom.velocity.get_state()
+    got = state.get("value") if isinstance(state, dict) else state
+    if got is None or abs(float(got) - value) > 1e-9:
+        raise SystemExit("[FAIL] 入口速度没设上：期望 %.6g，读回 %r（走的是 %s）"
+                         % (value, got, route))
+    return route
+
+
 def main():
-    work = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "work")
+    work = sys.argv[1] if len(sys.argv) > 1 else common.default_work(__file__)
+    common.require_ascii(work, "工作目录")       # 坑 2
     work = os.path.abspath(work)
     mesh = os.path.join(work, "duct.msh.h5")
+    step = os.path.join(work, "duct.step")
     if not os.path.exists(mesh):
         raise SystemExit("缺少网格 %s —— 先跑 make_mesh.py" % mesh)
+    common.check_mesh_not_stale(step, mesh)     # 坑 7'：网格比几何旧就别算
 
     trn = os.path.join(work, "run_case.trn")
     result = {"ok": False, "u_in": U_IN, "iters": ITERS, "work": work}
+    mi = os.path.join(work, "mesh_info.json")
+    if os.path.exists(mi):
+        with open(mi, encoding="utf-8") as f:
+            result["mesh_info"] = json.load(f)
 
     m = pyfluent.launch_fluent(
         dimension=3, precision="double", processor_count=2, mode="solver",
@@ -138,17 +197,7 @@ def main():
         m.settings.file.read_case(file_name=mesh)
         m.mesh.check()
         print("[ok] read-case + check")
-
-        # 0) watertight 工作流建出来的体区域默认是 **solid**（日志里是 `solid aluminum`），
-        #    直接给它贴 velocity-inlet 会报
-        #      "Flow boundary zone found adjacent to solid zone.
-        #       This problem MUST be fixed before solution proceed"
-        #    所以先把 cell zone 类型改成 fluid。
-        cz = m.settings.setup.cell_zone_conditions
-        solids = list(cz.solid.keys())
-        if solids:
-            cz.set_zone_type(zone_list=solids, new_type="fluid")
-            print("[ok] cell zone solid -> fluid：%s" % solids)
+        result["fluid_zones"] = force_fluid_cell_zones(m)
 
         # 1) 把合并成一个的 wall 按 45° 拆开（角度用度，PyFluent 内部转弧度）
         walls = list(m.settings.setup.boundary_conditions.wall.keys())
@@ -207,25 +256,17 @@ def main():
         bc = m.settings.setup.boundary_conditions
         bc.set_zone_type(zone_list=[inlet], new_type="velocity-inlet")
         bc.set_zone_type(zone_list=[outlet], new_type="pressure-outlet")
-
-        # velocity-inlet 的速度怎么设，取决于 velocity_specification_method：
-        #   默认 "Magnitude, Normal to Boundary" -> 用 `velocity`，且它是带 option 的
-        #   命名对象，state 形如 {"option": "value", "value": 0}
-        #   此时 `velocity_magnitude` 不存在、`velocity_components` 是 inactive。
-        vi = bc.velocity_inlet[inlet]
-        mom = vi.momentum
-        try:
-            mom.velocity.set_state({"option": "value", "value": U_IN})
-        except Exception:  # noqa: BLE001
-            mom.velocity_magnitude.set_state(U_IN)
-        print("[ok] inlet=%s %.3g m/s / outlet=%s 0 Pa" % (inlet, U_IN, outlet))
+        route = set_inlet_velocity(m, inlet, U_IN)
+        result["velocity_route"] = route
+        print("[ok] inlet=%s %.3g m/s（%s）/ outlet=%s 0 Pa"
+              % (inlet, U_IN, route, outlet))
 
         # 6) 正式初始化 + 迭代
         m.settings.solution.initialization.hybrid_initialize()
         m.settings.solution.run_calculation.iterate(iter_count=ITERS)
         print("[ok] %d iterations" % ITERS)
 
-        # 6) 取出口最大/最小 x 速度（流向若反了，最大值会接近 0，靠 min 兜底）
+        # 7) 取出口最大/最小 x 速度（流向若反了，最大值会接近 0，靠 min 兜底）
         header, vmax = rep.run("facet_max", [outlet], report_of="x-velocity")
         _, vmin = rep.run("facet_min", [outlet], report_of="x-velocity")
         result["vmax_header"] = header
@@ -256,9 +297,16 @@ def main():
         else:
             print("[warn] 取不到出口平均速度，跳过连续性校核：%s" % rep.log)
 
-        m.settings.file.write_case_data(
-            file_name=os.path.join(work, "duct.cas.h5"))
-        print("[ok] wrote case+data")
+        # 8) 存 case+data。同样的"同名文件静默不覆盖"陷阱（坑 7）在这里也适用，
+        #    所以走同一条 fresh_write。
+        cas = os.path.join(work, "duct.cas.h5")
+        size = common.fresh_write(
+            cas,
+            lambda: common.call_file(
+                m, "write_case_data",
+                [((), {"file_name": cas}), ((cas,), {})]), "case+data")
+        result["case_bytes"] = size
+        print("[ok] wrote case+data (%.1f MB)" % (size / 1e6))
     finally:
         result["report_log"] = getattr(locals().get("rep", None), "log", [])
         with open(os.path.join(work, "result.json"), "w", encoding="utf-8") as f:

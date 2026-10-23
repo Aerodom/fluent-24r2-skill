@@ -9,68 +9,61 @@
 六组对照实验见 `../../references/troubleshooting.md` 的 K 类）。
 原生 Meshing 生成 + 原生 `.msh.h5` 读取是唯一验证可用的路线。
 
-四个踩过的坑（改脚本前先看）：
+四个踩过的坑（都已变成代码里的守卫，改脚本前先看）：
   1. **不收 STL** —— watertight 只吃 CAD 面（STEP/IGES/Parasolid）。
   2. `describe_geometry.capping_required` 取值必须是 `"No"` / `"Yes"`，
-     小写 `"no"` 会报 "Provided value(s): no"。
+     小写 `"no"` 会报 "Provided value(s): no"。大小写敏感。
   3. **所有 CAD 面会被合并成一个 zone**（本机实测：整个长方体只有
      `...-1:1` 一个 wall）。要在求解器里用 `sep_face_zone_angle` 按角度拆开。
   4. **网格尺寸的单位是"文件声明的单位"，不是米。** gmsh 写的 STEP 声明
      `MILLI METRE`（见 make_geometry.py 的单位陷阱），Meshing 日志会打
      `length unit = [mm]`；此时传 `min_size=0.0015` 会被当成 0.0015 mm，
-     换算成 1.5e-06 m，在 1 m 长的管道上直接 `Error: Out of Memory`。
+     换算成 1.5e-06 m，在 1 m 长的管道上直接 `Error: Out of Memory` 并挂死。
      `import_geometry.length_unit` 设了也不管用 —— **文件声明优先**。
-     所以本脚本的尺寸常量一律用**毫米**（`_MM` 后缀），别改成米。
+
+     所以本脚本的尺寸常量一律用**米**（物理量），运行时读 STEP 的声明单位
+     自动换算（`_common.size_in_file_unit`）。这样换一份声明为米的 STEP 也不会错。
 
 用法：
     python make_mesh.py [工作目录]
-    ⚠️ 工作目录必须是**纯 ASCII 路径**。放在含中文的目录下会在 CAD 导入阶段报
-       "Error in CAD Import"，与本脚本参数无关。
+    ⚠️ 工作目录必须是**纯 ASCII 路径**（脚本会在启动 Fluent 之前检查）。
 依赖：ansys-fluent-core、已配置许可证；`AWP_ROOT242` 指向安装根目录。
 """
 import json
 import os
 import sys
-import time
 
+import _common as common
 import ansys.fluent.core as pyfluent
 
 STEP_NAME = "duct.step"
 MESH_NAME = "duct.msh.h5"
 
-# 单位：毫米（= STEP 文件声明单位）。见文件头坑 4。
-# 几何 1000 x 100 x 20 mm。取 1.5 mm 上限 -> 长约 667 格、高约 67 格、宽约 13 格，
-# 约 58 万单元。窄缝方向（20 mm）只有 13 层偏少，会让层流峰值偏低，
-# 2.5 mm 时实测 u_max/U_mean = 1.53（解析解 1.724），所以取 1.5 mm。
-MIN_SIZE_MM = 0.5
-MAX_SIZE_MM = 1.5
-
-
-def default_work():
-    """默认工作目录：脚本旁边的 work/；若该路径含非 ASCII，退到系统临时目录。"""
-    here = os.path.dirname(os.path.abspath(__file__))
-    cand = os.path.join(here, "work")
-    if cand.isascii():
-        return cand
-    import tempfile
-    alt = os.path.join(tempfile.gettempdir(), "fluent_smoke")
-    print("[warn] 脚本所在路径含非 ASCII（%s）" % here)
-    print("       Fluent Meshing 的 CAD 导入器要求纯 ASCII 路径，改用 %s" % alt)
-    return alt
+# 物理尺寸（米）。换算成"文件声明单位"由 common.size_in_file_unit 负责。
+# 几何 1.0 x 0.1 x 0.02 m，取 1.5 mm -> 长约 667 格、高约 67 格、宽约 13 格，
+# 实测 53.1 万单元 / 124 MB / 约 2 min，u_max/U_mean = 1.6221（解析 1.7236）。
+# 2.5 mm 时只有 13.5 万单元，比值掉到 1.5300（-11.2%），所以不要放宽。
+MIN_SIZE_M = 0.5e-3
+MAX_SIZE_M = 1.5e-3
 
 
 def main():
-    work = sys.argv[1] if len(sys.argv) > 1 else default_work()
+    work = sys.argv[1] if len(sys.argv) > 1 else common.default_work(__file__)
+    common.require_ascii(work, "工作目录")      # 坑 2：Fluent 起来之前就拦
     os.makedirs(work, exist_ok=True)
-    if not work.isascii():
-        raise SystemExit(
-            "工作目录含非 ASCII 字符：%s\n"
-            "Fluent Meshing 的 CAD 导入器在这个路径下会报 'Error in CAD Import'，\n"
-            "请改用纯 ASCII 路径，例如 <WORK>" % work)
+
     step = os.path.join(work, STEP_NAME)
     mesh = os.path.join(work, MESH_NAME)
     if not os.path.exists(step):
         raise SystemExit("缺少几何 %s —— 先跑 make_geometry.py" % step)
+
+    ext = common.step_extent(step)              # 坑 1：读文件，不信"我按米建模"
+    min_size = common.size_in_file_unit(MIN_SIZE_M, ext["scale_to_m"])
+    max_size = common.size_in_file_unit(MAX_SIZE_M, ext["scale_to_m"])
+    print("[ok] 几何物理尺寸 %.6g m，STEP 声明单位 %s（1 单位 = %.0e m）"
+          % (ext["extent_m"], ext["declared"], ext["scale_to_m"]))
+    print("[ok] sizing 物理 %.4g ~ %.4g mm  ->  按文件单位传 %.4g ~ %.4g"
+          % (MIN_SIZE_M * 1e3, MAX_SIZE_M * 1e3, min_size, max_size))
 
     m = pyfluent.launch_fluent(
         mode="meshing", dimension=3, precision="double", processor_count=2,
@@ -84,13 +77,11 @@ def main():
 
         srf = wt.create_surface_mesh
         srf.cfd_surface_mesh_controls.set_state(
-            {"min_size": MIN_SIZE_MM, "max_size": MAX_SIZE_MM,
+            {"min_size": min_size, "max_size": max_size,
              "size_functions": "Curvature & Proximity"}
         )
-        print("[ok] sizing %.4g ~ %.4g mm（文件声明单位）"
-              % (MIN_SIZE_MM, MAX_SIZE_MM))
 
-        wt.describe_geometry.capping_required.set_state("No")   # 大小写敏感
+        wt.describe_geometry.capping_required.set_state("No")   # 坑 2：大小写敏感
         print("[ok] describe_geometry (capping=No)")
 
         wt.create_surface_mesh()
@@ -102,23 +93,28 @@ def main():
         wt.create_volume_mesh()
         print("[ok] volume mesh")
 
-        # 必须先删目标文件！`m.tui.file.write_mesh` 遇到同名文件会弹"是否覆盖"，
-        # 非交互模式下它**静默放弃**，而 os.path.exists 仍然为真 —— 于是脚本
-        # 会拿上一次的旧网格报成功，后面求解出来的全是不该出现的结果。
-        if os.path.exists(mesh):
-            os.remove(mesh)
-        t0 = time.time()
-        m.tui.file.write_mesh(mesh)
-        if not os.path.exists(mesh) or os.path.getsize(mesh) == 0:
-            raise SystemExit("写网格失败：%s 不存在或为空" % mesh)
-        if os.path.getmtime(mesh) < t0 - 2:
-            raise SystemExit("写网格失败：%s 是旧文件（mtime 没更新）" % mesh)
-        print("[ok] wrote %s (%.1f MB)" % (mesh, os.path.getsize(mesh) / 1e6))
+        # 坑 7：write_mesh 遇到同名文件会弹"是否覆盖"，非交互模式下静默放弃。
+        # fresh_write 先删再写，并三查存在 / 非空 / mtime 是否真的变了。
+        # 坑 5：meshing 会话里 write_mesh 只挂在 tui 侧，solver 会话里
+        #       tui.file 整条不可用 —— call_file 两条路都探。
+        used = []
+
+        def _write():
+            used.append(common.call_file(
+                m, "write_mesh",
+                [((mesh,), {}), ((), {"file_name": mesh})]))
+
+        size = common.fresh_write(mesh, _write, "网格")
+        print("[ok] wrote %s (%.1f MB, via %s)" % (mesh, size / 1e6, used[0]))
+
         with open(os.path.join(work, "mesh_info.json"), "w", encoding="utf-8") as f:
             json.dump({"step": STEP_NAME, "mesh": MESH_NAME,
-                       "size_unit": "mm",
-                       "min_size_mm": MIN_SIZE_MM, "max_size_mm": MAX_SIZE_MM},
-                      f, indent=1)
+                       "step_declared_unit": ext["declared"],
+                       "step_scale_to_m": ext["scale_to_m"],
+                       "step_extent_m": ext["extent_m"],
+                       "min_size_m": MIN_SIZE_M, "max_size_m": MAX_SIZE_M,
+                       "file_unit_min": min_size, "file_unit_max": max_size,
+                       "mesh_bytes": size}, f, indent=1)
     finally:
         try:
             m.exit()

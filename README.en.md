@@ -1,4 +1,4 @@
-# fluent-24r2-case-debug
+# fluent-24r2-skill
 
 > English | [简体中文](README.md)
 
@@ -21,13 +21,13 @@ This skill turns those pitfalls into a **staged workflow + gate criteria + a cas
 
 ```bash
 # User level (applies to all projects)
-git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-case-debug
+git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-skill
 
 # Or project level
-git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-case-debug
+git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-skill
 ```
 
-On Windows the default user-level path is `C:\Users\<user>\.workbuddy\skills\fluent-24r2-case-debug`.
+On Windows the default user-level path is `C:\Users\<user>\.workbuddy\skills\fluent-24r2-skill`.
 
 Once installed, tasks involving journals / PyFluent / post-processing / `.wbpj` / Fluent troubleshooting will match this skill automatically.
 
@@ -52,7 +52,7 @@ Individual case cards and the `references/` deep dives are currently written in 
 ## Structure
 
 ```
-fluent-24r2-case-debug/
+fluent-24r2-skill/
 ├── SKILL.md                      # Spec: general methodology + 8-stage workflow + hard rules
 ├── SKILL.en.md                   # English translation of SKILL.md
 ├── cases/                        # Case library (search here before you start)
