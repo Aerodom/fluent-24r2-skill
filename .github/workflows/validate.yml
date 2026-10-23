@@ -1,0 +1,22 @@
+name: validate
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Case library consistency
+        run: python scripts/check_cases.py
+
+      - name: Sensitive-content audit
+        run: python scripts/audit_sensitive.py --strict

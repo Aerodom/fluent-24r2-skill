@@ -332,3 +332,246 @@ subprocess.Popen(cmd, shell=True, cwd=WORK_DIR, creationflags=DETACH_FLAGS)
 2. **初始化 / patch / 建测点**：**统一走 journal 文件**
    （`session.tui.file.read_journal(path)`），格式与手工 journal 完全一致，最稳。
    实测：`/solve/patch 707` + `()` + `pressure` + 值的多行写法一次通过。
+
+## K. 外部格式网格导入直接 SIGSEGV（2026-10-23 冒烟测试实测）
+
+**现象**：`/file/read-case xxx.msh`（gmsh 2.2）或 `xxx.cgns` → 日志走到
+
+```
+Reading "xxx.msh"...
+Buffering for file scan...
+
+Building...
+     mesh
+Node 0: Process NNNN: Received signal SIGSEGV.
+Fatal failure in fluent (disconnected / ended abnormally) - exiting...
+```
+
+**关键判据**：日志里**没有** `Opening library ... done.` 这一行。
+没有它就别再折腾网格文件了 —— 是 reader 库栈的问题，不是你的网格坏了。
+（与 CGNS 那条"假崩溃"同一个特征，见 `meshing-routes.md` 的 CGNS 段。）
+
+**六组对照实验（全部崩在同一位置，因此与下面四项无关）**：
+
+| 变量 | 试过的取值 | 结果 |
+|---|---|---|
+| 文件格式 | gmsh 2.2 四边形（2000 quad）/ 三角形（4000 tri）/ CGNS | 全崩 |
+| 路径字符集 | 含中文用户目录 / 纯 ASCII 目录 + TMP/TEMP 重定向 | 全崩 |
+| 并行度 | `-t2` / `-t1` | 全崩（`-t1` 表现为 `Null Domain Pointer`） |
+| PATH 传递 | Git Bash 冒号式 PATH / cmd.exe 原生分号式 PATH（补齐 vki、MS-MPI、Intel MPI） | 全崩 |
+
+同环境下**原生 `.msh.h5` 读取正常**（`read-case` + `mesh/check` 通过），
+说明求解器本身没问题，**只有外部格式 reader 这条路坏了**。
+
+**处置**：
+
+1. **不要让外部网格进入交付路线**。用 Fluent Meshing watertight 从 CAD（`.step`/`.igs`）
+   生成原生 `.msh.h5`，这是本机唯一验证可用的链路（`tests/smoke/make_mesh.py`）。
+2. **不要用 STL**：watertight 明确拒绝面片格式 ——
+   `Faceted formats, like '.stl', '.tgf' and 'fmd' are not yet supported.`
+3. gmsh 仍然有用，但只用来**出几何**（`gmsh.write("x.step")`），不出网格。
+
+## L. PyFluent 0.42.1 的 `session.tui.*` 调用返回 None（静默）
+
+**现象**：`m.tui.mesh.modify_zones.list_zones()`、`m.results.report.surface_integrals.area(...)`
+等调用**不报错、不抛异常，但返回 `None`**，只在日志里留一行提示：
+
+```
+The following solver settings object method could also be used to execute the above command:
+<solver_session>.results.report.surface_integrals.area(surface_names = [...], write_to_file = False)
+```
+
+**后果**：任何"靠返回值做判断"的自动化都会静默拿到 `None`，然后在下游炸
+（例如按面积排序认进出口 → `min() empty sequence`）。这是最像"环境坏了"的假象之一。
+
+**处置**：
+
+- **取数一律走文件**：`/file/export/ascii`、`/solve/report-files/add ... file-name`，
+  写盘后再用 Python 解析。已有案例（G3 监测 CSV）就是这么做的。
+- **要返回值就用配置式 API**：`session.settings.*` 与 `session.solution.report_definitions.*`，
+  不要用 `session.results.report.*` 的即时报表接口。
+- 判断"到底有没有执行"看 `.trn` 转录文件，不要看返回值。
+
+补充（2026-10-23 冒烟测试实测，比上面的"返回 None"更严重）：
+
+- **`m.tui.file.*` 整条路径不可用**，不是返回 None 的问题，而是直接抛
+  `RuntimeError: eval: unbound variable / Error Object: file`。因为 `file` 被路由到
+  设置树求值，而设置树里没有名为 `file` 的顶层对象。
+  改用 **`m.settings.file.*`** —— 它下面 `read_case` / `read_journal` /
+  `start_transcript` / `stop_transcript` / `write_case_data` / `export` 全都有。
+- **转录是本机最稳的取数通道**：`m.settings.file.start_transcript(file_name="x.trn")`
+  → 执行 TUI 报表 → `stop_transcript` → 用正则解析该文件。报告值虽不通过返回值给出，
+  但**一定会打印进转录**：
+
+  ```
+                              Area                [m^2]
+  -------------------------------- --------------------
+  wall:1:001                                       1e-07
+  ```
+
+- 顺带确认：`report_definitions` 在 0.42.1 里**没有** `surface_area` 属性
+  （`AttributeError ... The most similar names are: surface`），
+  通用面报告在 `report_definitions.surface`。
+
+---
+
+## M. gmsh 写的 STEP 把几何缩小 1000 倍（2026-10-23 实测）
+
+**现象**：用 gmsh 建 1.0 m × 0.1 m × 0.02 m 的管道，STEP 导入 Fluent 后**不报错**，
+但端面面积是 `1e-07 m²`（应为 `2e-3`）。求解能跑，结果却整体偏掉：
+Re 从 222 变成 0.2，入口段长度远大于管长，出口根本没发展，
+`u_max/U_mean` 永远对不上解析解 —— 很容易被误判成"网格质量差"或"边界条件不对"。
+
+**根因**：gmsh 的 OCC STEP 写出器**永远**声明 `SI_UNIT(.MILLI.,.METRE.)`，
+但默认把模型坐标**原样**写进去。Fluent 如实按声明换算，于是 1.0 被当成 1 mm。
+
+**实测对照**（`gmsh` 4.15.2，三种组合，看的是"Fluent 最终得到的物理尺寸"）：
+
+| 设置 | 文件内最大坐标 | 文件声明 | Fluent 实际得到 |
+|---|---|---|---|
+| 默认 | 1.0 | MILLI METRE | **0.001 m** ✗ |
+| `Geometry.OCCTargetUnit = "M"` | 1000.0 | MILLI METRE | **1.0 m** ✓ |
+| 默认 + 自己把尺寸乘 1000 | 1000000.0 | MILLI METRE | 1000 m ✗ |
+
+**处置**：
+
+```python
+gmsh.initialize()
+gmsh.option.setString("Geometry.OCCTargetUnit", "M")   # 必须在 model.add 之前
+gmsh.model.add("duct")
+gmsh.model.occ.addBox(0, 0, 0, 1.0, 0.1, 0.02)
+...
+```
+
+- 设成 `"M"` 后 gmsh 会把数值乘 1000 再写，**文件里仍然是 `MILLI METRE`** —— 这是对的，
+  **不要**去改声明，改了反而错 1000 倍。
+- 单位不能靠"我设了"来相信，要读回文件验证：解析 `SI_UNIT` 拿到声明，
+  取全部 `CARTESIAN_POINT` 的最大值，两者相乘才是物理尺寸。
+  `tests/smoke/make_geometry.py` 的 `step_physical_extent()` 就是干这个的，
+  偏差超过 1% 直接返回非 0。
+
+**判别捷径**：任何"几何能导入、网格能生成、但雷诺数和预期差三个数量级"的场合，
+先量一下包围盒，别先怀疑网格。
+
+---
+
+## N. 工作目录含中文 → Meshing 报 "Error in CAD Import"（2026-10-23 实测）
+
+**现象**：同一份 STEP，放在纯 ASCII 目录（占位符 `<WORK>`）下正常；放到含中文的路径
+（例如 Windows 用户名本身就是中文，工程目录落在其下）就在 CAD 导入阶段失败：
+
+```
+RuntimeError: Exception encountered in S_ExecuteTask: Error in CAD Import
+Error occurred during import.
+Importing the selected file(s) could not be completed. Check to make sure that the
+selected file format is supported. In addition, check to make sure the CAD Readers
+are properly configured for the format using the CAD Configuration Manager utility.
+```
+
+报错文字把矛头指向"格式不支持 / CAD Reader 没配好"，**完全是误导** —— 格式没问题，
+是路径里的非 ASCII 字符。中文用户名（用户目录里带中文）会直接踩上，这在国内环境里很常见。
+
+**处置**：
+
+- Meshing 的工作目录必须是**纯 ASCII 路径**。`tests/smoke/make_mesh.py` 里做了两件事：
+  路径非 ASCII 就自动退到系统临时目录，并在 `work.isascii()` 检查失败时直接给出可读的
+  报错而不是让它走到 CAD 导入再报假错。
+- 判定方法：`str(path).isascii()` 为 `False` 就换路径，别去查 CAD Reader。
+- 注意这和"求解器读 `.msh.h5`"是两回事：求解器对路径宽容得多，只有 **Meshing 的
+  CAD 翻译器**（Workbench→FLTG 转换）这一步挑路径。
+
+---
+
+## O. Meshing 的网格尺寸单位是"文件声明单位"，不是米（2026-10-23 实测）
+
+**现象**：`create_surface_mesh` 传 `min_size=0.0015`，Meshing 立刻
+
+```
+Error: Out of Memory
+running ANSYS TGrid CADToTGridConverter FAILED!
+(TGL_Process_Curvature_SF(..., minMeshSize = 1.5e-06, maxMeshSize = 6e-06, ...) failed.)
+```
+
+并且进程随后挂死（本机实测挂了 9 分钟没退出）。看起来像"电脑内存不够"，
+实际是**尺寸被当成了毫米再换算成米**：`0.0015` → `1.5e-06 m` = 1.5 µm，
+在 1 m 长的管道上就是天文数字的单元。
+
+**根因**：尺寸解释跟着 **STEP 文件声明的长度单位**走。gmsh 写的 STEP 声明
+`MILLI METRE`，Meshing 日志会打 `length unit = [mm]`（见 M 节）。
+此时传进去的 `min_size` / `max_size` 按毫米理解。
+
+`import_geometry.length_unit.set_state("m")` **不管用** —— 文件声明优先，
+日志里仍然是 `[mm]`。
+
+**处置**：
+
+- 尺寸常量用**毫米**表达，并在变量名上写死单位（`MIN_SIZE_MM`、`MAX_SIZE_MM`），
+  防止下一个人"顺手改成米"。
+- 开工前先看转录里的 `length unit = [...]`，再决定数值量级。
+- 判据：日志里 `minMeshSize` 应该和你想要的物理尺寸同量级。
+  想 1.5 mm，日志就该是 `1.5e-03` 左右；出现 `1.5e-06` 就是差 1000 倍。
+- 万一已经挂死：直接杀 `fluent.exe` / `fl_mpi2420.exe`，别等它自己退。
+
+---
+
+## P. 体区域默认是 solid → "Flow boundary zone found adjacent to solid zone"
+
+**现象**：网格建好、边界条件也贴上了，一开始求解就：
+
+```
+RuntimeError: Flow boundary zone found adjacent to solid zone.
+       This problem MUST be fixed before solution proceed
+```
+
+**根因**：watertight 工作流建出的体区域**类型是 `solid`**。Meshing 自己的日志就写着：
+
+```
+ 39  freeparts-...-1            solid               aluminum            cell
+```
+
+`aluminum` 这种材料名是 CAD 里带过来的，容易被当成"只是缺省材料名"而忽略，
+真正的关键字是第二列的 `solid`。
+
+**处置**（求解器侧一行，对任何来源的网格都适用）：
+
+```python
+cz = m.settings.setup.cell_zone_conditions
+solids = list(cz.solid.keys())
+if solids:
+    cz.set_zone_type(zone_list=solids, new_type="fluid")
+```
+
+**判别**：读网格后先看 `mesh/check` 或转录里的
+`N polyhedra cells, zone id: nn` 前面那行 zone 列表的 type 列；
+是 `solid` 就先改了再谈物理。
+
+---
+
+## Q. `write_mesh` 遇到同名文件静默不覆盖（最阴的一个）
+
+**现象**：改完网格参数重跑 Meshing，脚本打印 `[ok] wrote duct.msh.h5 (29.9 MB)`，
+但求解结果和上一次**逐位相同**；`ls` 一看文件时间戳还是上一次的。
+
+**根因**：`m.tui.file.write_mesh(path)` 在目标文件已存在时会弹"是否覆盖"，
+**非交互模式下它静默放弃写入**，既不抛异常也不返回错误。
+于是 `os.path.exists(path)` 依然为真（那是上一次的文件），
+`os.path.getsize()` 也正常 —— 所有"以为写成功了"的检查全部通过。
+
+**这是本 skill 里最危险的一类故障**：它不报错，只是让你拿旧结果当新结果用，
+而且看起来完全合理（尺寸量级、量纲、收敛曲线都正常）。
+
+**处置**：
+
+```python
+if os.path.exists(mesh):
+    os.remove(mesh)          # 先删，把"静默放弃"变成"必然失败"
+t0 = time.time()
+m.tui.file.write_mesh(mesh)
+if not os.path.exists(mesh) or os.path.getsize(mesh) == 0:
+    raise SystemExit("写网格失败")
+if os.path.getmtime(mesh) < t0 - 2:
+    raise SystemExit("写网格失败：mtime 没更新，拿到的是旧文件")
+```
+
+**通用教训**：判断"文件类操作成功"永远要**三查** —— 存在、非空、**mtime 真的变了**。
+只查 `exists()` 等于没查。同类问题还有 `/file/export/ascii`、`/solve/report-files`。

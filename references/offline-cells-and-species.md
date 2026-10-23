@@ -189,7 +189,7 @@ Fluent self-report    = 4.6077498e-05
 ### 6.2 ⚠️ 「docstring 里声明了」≠「代码里实现了」
 
 PG 实撞：`post_pg.py` 顶部注释列了
-`downstream/PG_<S>_danger_summary_<NX>x<NX>.csv`，但
+`<OUT_DIR>/PG_<S>_danger_summary_<NX>x<NX>.csv`，但
 `grep -n summary post_pg.py` **只命中那一行注释** —— 整个脚本从未写出该文件。
 因为"少一个文件"不会报错，交付时才发现下游缺数据。
 

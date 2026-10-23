@@ -58,9 +58,14 @@ fluent-24r2-case-debug/
 ├── cases/                        # Case library (search here before you start)
 │   ├── README.md / README.en.md  # Index + search / contribution rules
 │   ├── _TEMPLATE.md / .en.md     # Uniform card template (§1 selection → §13 reuse)
+│   ├── assets/                   # Journals / long tables referenced by cards (empty by default, no binaries)
 │   └── <ID>-<short-name>.md      # One card per case
-├── references/                   # General references (command tables, checklists, troubleshooting)
-└── scripts/                      # Reusable scripts + check_cases.py (case library) / audit_sensitive.py (pre-publication audit)
+├── references/                   # General references (commands, checklists, troubleshooting, version bounds)
+├── scripts/                      # Reusable scripts + check_cases.py / audit_sensitive.py
+├── tests/smoke/                  # Smoke test: minimal case with an analytical answer (run this first on a new version)
+├── .github/workflows/            # CI: runs both checks on every push / PR
+├── CHANGELOG.md                  # Version history (SemVer)
+└── requirements.txt              # Dependencies for the offline scripts (numpy / scipy / h5py)
 ```
 
 ## Use it in three steps
@@ -105,6 +110,38 @@ python scripts/audit_sensitive.py --strict   # treat WARN as failure too
 It flags local absolute paths, home directories, e-mails, IPv4 addresses and organisation names. To also check
 client names, project codes and similar terms specific to you, list them in `scripts/audit_terms.local.txt`
 (one per line; already excluded by `.gitignore` — **do not commit it**).
+
+## Version & compatibility
+
+| Item | Value |
+|---|---|
+| Current version | **0.1.0** (see [CHANGELOG.md](CHANGELOG.md)) |
+| **Verified** | ANSYS Fluent **2024R2 / v242**, Windows x64; PyFluent 0.42.1 |
+| **Not verified** | Any other release. If it works there, that is luck, not a contract |
+
+When you move to another release (2025R1/R2 …): **run `tests/smoke/` first**. It uses a 2D
+channel flow to check mesh reading, journal commands, the solver and offline reading in a few
+minutes. The six most fragile areas and their probe criteria are in
+[`references/version-compatibility.md`](references/version-compatibility.md).
+
+> A card is only marked `verified` on the release it was actually run on. If it runs on another
+> release, add a `verified_on:` line — **never edit the old numbers**, that would falsify the run.
+
+## Repo governance
+
+| Mechanism | Location | Purpose |
+|---|---|---|
+| CI | `.github/workflows/validate.yml` | Runs both scripts on every push / PR; any failure turns the build red |
+| Case-library check | `scripts/check_cases.py` | front matter, controlled vocabulary, **index ↔ file ↔ status three-way agreement**, registration closure, links, asset references |
+| Pre-publication audit | `scripts/audit_sensitive.py` | Absolute drive paths, user directories, e-mails, IPs, organisation names (`--strict` fails on warnings too) |
+| Changelog | `CHANGELOG.md` | One line per card or workflow change |
+
+Local self-check before committing (both must pass):
+
+```bash
+python scripts/check_cases.py
+python scripts/audit_sensitive.py --strict
+```
 
 ## Caveats
 

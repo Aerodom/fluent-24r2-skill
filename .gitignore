@@ -8,3 +8,6 @@ scripts/audit_terms.local.txt
 # 输出与临时产物
 *.log
 _out/
+
+# 冒烟测试的生成物（网格、结果、转录）—— 单文件几 MB，不要进仓库
+tests/smoke/work/

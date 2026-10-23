@@ -57,9 +57,14 @@ fluent-24r2-case-debug/
 ├── cases/                        # 案例库（先查这里，再动手）
 │   ├── README.md / README.en.md  # 索引表 + 检索/扩充规则
 │   ├── _TEMPLATE.md / .en.md     # 统一卡片模板（§1 选型 → §13 复用差异）
+│   ├── assets/                   # 卡片引用的 journal / 长表格（默认空，不放二进制）
 │   └── <ID>-<短名>.md            # 每个案例一张卡片
-├── references/                   # 通用参考（命令表、检查单、故障表、专题）
-└── scripts/                      # 可复用脚本 + check_cases.py（案例库）/ audit_sensitive.py（发布前体检）
+├── references/                   # 通用参考（命令表、检查单、故障表、专题、版本边界）
+├── scripts/                      # 可复用脚本 + check_cases.py / audit_sensitive.py
+├── tests/smoke/                  # 冒烟测试：最小算例 + 解析解判据（换版本先跑这个）
+├── .github/workflows/            # CI：push / PR 自动跑两个校验脚本
+├── CHANGELOG.md                  # 版本记录（SemVer）
+└── requirements.txt              # 离线脚本依赖（numpy / scipy / h5py）
 ```
 
 ## 怎么用（三步）
@@ -102,6 +107,37 @@ python scripts/audit_sensitive.py --strict   # 连 WARN 一起当失败
 
 它查本机绝对路径、用户目录、邮箱、IPv4、组织名。想额外核对客户名、项目号等本项目的敏感词，
 把它们写进 `scripts/audit_terms.local.txt`（每行一个，已被 `.gitignore` 排除，**不要提交**）。
+
+## 版本与兼容
+
+| 项 | 值 |
+|---|---|
+| 当前版本 | **0.1.0**（变更见 [CHANGELOG.md](CHANGELOG.md)） |
+| **已验证** | ANSYS Fluent **2024R2 / v242**，Windows x64；PyFluent 0.42.1 |
+| **未验证** | 其他任何版本。能跑通是运气，不是契约 |
+
+换版本（2025R1/R2 等）时：**先跑 `tests/smoke/`**，它用 2D 通道层流在几分钟内验证
+"网格读取 / journal 命令 / 求解 / 离线读数"四层；最易变的六处与探针判据见
+[`references/version-compatibility.md`](references/version-compatibility.md)。
+
+> 案例卡片只在**实测过的版本**上标 `verified`。在别的版本上跑通，请在卡片里新增一行
+> `verified_on:`，**不要改旧数字** —— 改了就等于伪造实测。
+
+## 仓库治理
+
+| 机制 | 位置 | 作用 |
+|---|---|---|
+| CI | `.github/workflows/validate.yml` | 每次 push / PR 跑下面两个脚本，任一失败即标红 |
+| 案例库校验 | `scripts/check_cases.py` | front matter、受控词、**索引 ↔ 文件 ↔ 状态三向对账**、登记闭环、链接、素材引用 |
+| 发布前体检 | `scripts/audit_sensitive.py` | 绝对路径、用户目录、邮箱、IP、组织名（`--strict` 让 warning 也失败） |
+| 版本记录 | `CHANGELOG.md` | 每次改卡片或改流程记一行 |
+
+提交前本地自检（两条都过才算完）：
+
+```bash
+python scripts/check_cases.py
+python scripts/audit_sensitive.py --strict
+```
 
 ## 说明
 

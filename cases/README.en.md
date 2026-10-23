@@ -24,21 +24,27 @@ The library **does not presuppose any number of cases** — it is a container me
 | ID | Name | class | One-line recipe | Mesh size | Status |
 |---|---|---|---|---|---|
 | [L1](L1-molten-shell-leak.md) | Furnace shell water-jacket breach → molten leakage | `vof-free-surface` | Pressure-based + implicit VOF + solidification + DO radiation; side wall 0–3 m must remain wall | 404k | verified (incl. one misdiagnosis post-mortem) |
-| [L2](L2-lance-brick-leak.md) | Oxygen lance brick burnout → molten leakage | `vof-free-surface` | Reuse L1, change only the leak-port position/shape | 404k | untested (isomorphic to L1) |
-| [L3](L3-slag-line-leak.md) | Slag-line burnout → molten leakage | `vof-free-surface` | Reuse L1; interruption/resume verified | 404k | partial |
-| [L4](L4-autoclave-acid-leak.md) | Autoclave acid/alkali solution leakage | `vof-free-surface` | Ø30 mm hole, 40 kg/s, ρ=1200, dt 2e-3, gravity along Y | TBD | ★ verified end-to-end |
-| [B1](B1-molten-water-explosion.md) | Molten leakage into water → explosion | `compressible-shock` | Two stages: L1 leakage → B2 explosion recipe | TBD | untested (route only) |
-| [B2](B2-autoclave-valve-explosion.md) | Autoclave valve failure → pressure explosion | `compressible-shock` | Density-based + ideal gas + 3.6 MPa gauge patch + dt 5e-4, **gravity off** | TBD | ★ verified end-to-end |
-| [B3](B3-runaway-reaction-explosion.md) | In-vessel runaway reaction explosion | `compressible-shock` | B2 + reaction source terms (needs external kinetics data) | TBD | untested |
-| [B4](B4-vessel-material-failure.md) | Vessel material failure → vessel burst | `compressible-shock` | B2 + failure pressure/temperature criteria; cross-check with TNT equivalence | TBD | untested |
+| [L2](L2-lance-brick-leak.md) | Oxygen lance brick burnout → molten leakage | `vof-free-surface` | Reuse L1, change only the leak-port position/shape | 404k | partial (run together with L1/L3; same boundary defect) |
+| [L3](L3-slag-line-leak.md) | Slag-line burnout → molten leakage | `vof-free-surface` | Reuse L1; interruption/resume verified | 404k | partial (interrupted and resumed; duplicate rows in monitor CSV) |
+| [L4](L4-autoclave-acid-leak.md) | Autoclave acid/alkali solution leakage | `vof-free-surface` | Ø30 mm hole, 40 kg/s, ρ=1200, dt 2e-3, gravity along Y | not recorded | verified (end-to-end) |
+| [B1](B1-molten-water-explosion.md) | Molten leakage into water → explosion | `compressible-shock` | Two stages: L1 leakage → B2 explosion recipe | not recorded | untested (route only) |
+| [B2](B2-autoclave-valve-explosion.md) | Autoclave valve failure → pressure explosion | `compressible-shock` | Density-based + ideal gas + 3.6 MPa gauge patch + dt 5e-4, **gravity off** | not recorded | verified (end-to-end) |
+| [B3](B3-runaway-reaction-explosion.md) | In-vessel runaway reaction explosion | `compressible-shock` | B2 + reaction source terms (needs external kinetics data) | not recorded | untested (route only) |
+| [B4](B4-vessel-material-failure.md) | Vessel material failure → vessel burst | `compressible-shock` | B2 + failure pressure/temperature criteria; cross-check with TNT equivalence | not recorded | untested (route only) |
 | [S1](S1-foam-slag-splashing.md) | Foam-slag splashing | `vof-free-surface` | Implicit VOF + multi-sphere register injection (**sacrificial-slot recipe**); first check whether the mesh can resolve the slug | **1.63M** | verified (physics limited by mesh) |
-| [S2](S2-tapping-splashing.md) | Tapping spout splashing | `vof-free-surface` | Finite liquid-slug patch + half-domain symmetry + dt 1e-4 ramp → 5e-4 | 633k | ★ verified (impact-point error 3%) |
-| [G1](G1-roof-flue-leak.md) | Roof flue-gas leakage with SO₂/As₂O₃ | `species-dispersion` | Species transport + mass-flow inlet (continuous source) + gravity on for heavy gas | TBD | untested |
-| [G2](G2-offgas-leak.md) | Off-gas port flue-gas leakage | `species-dispersion` | Same as G1, different source location; As₂O₃ needs DPM / phase separation | TBD | untested |
-| [G3](G3-autoclave-toxic-gas.md) | Autoclave toxic gas leakage | `species-dispersion` | Mixture `{so2, air}` (**air as the difference species**) + breathing-height slice + threshold raster | 74.8k | ★ verified end-to-end |
+| [S2](S2-tapping-splashing.md) | Tapping spout splashing | `vof-free-surface` | Finite liquid-slug patch + half-domain symmetry + dt 1e-4 ramp → 5e-4 | 633k | verified (impact-point error 3%) |
+| [G1](G1-roof-flue-leak.md) | Roof flue-gas leakage with SO₂/As₂O₃ | `species-dispersion` | Species transport + mass-flow inlet (continuous source) + gravity on for heavy gas | not recorded | untested (route only) |
+| [G2](G2-offgas-leak.md) | Off-gas port flue-gas leakage | `species-dispersion` | Same as G1, different source location; As₂O₃ needs DPM / phase separation | not recorded | untested (route only) |
+| [G3](G3-autoclave-toxic-gas.md) | Autoclave toxic gas leakage | `species-dispersion` | Mixture `{so2, air}` (**air as the difference species**) + breathing-height slice + threshold raster | 74.8k | verified (end-to-end) |
 
-`class` values: `compressible-shock` / `vof-free-surface` / `species-dispersion` / `single-phase`.
+`class` values: `compressible-shock` / `vof-free-surface` / `species-dispersion` / `single-phase`
+(**there is no `single-phase` card yet** — when classification lands there, follow the coverage note in `../SKILL.md` §2 instead of forcing a multiphase recipe onto a single-phase case).
 Before adding a value, ask whether it differs from the existing four in its **dominant mechanism**; "one more piece of equipment" is not a new class.
+
+> **Status column**: must start with the controlled word `verified` / `partial` / `untested`, with the human-readable
+> nuance in parentheses. The card's front-matter `status` must match — `scripts/check_cases.py` enforces the agreement.
+> **`not recorded`** means the card genuinely does not record a mesh size; it is not a to-do. **Do not use it for
+> scale estimates** — count the cells from the original case if you need the number.
 
 ## 3. Card conventions
 

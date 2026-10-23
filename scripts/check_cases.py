@@ -8,8 +8,12 @@
   3. `reuse_of` 指向是否存在、是否自指
   4. 前缀是否已在 cases/README.md 的前缀登记表里注册
   5. 索引表（中文、英文两份）与卡片文件是否**双向一致**
-  6. 全库相对链接是否可达
-  7. 卡片里 `assets/<ID>/...` 引用是否存在
+  6. **索引表状态列与 front matter `status` 是否一致**（两处漂移是历史事故）
+  7. **登记闭环**：references/*.md 与 scripts/*.py 是否都在 SKILL.md 里登记；
+     SKILL.md 引用的 references/ 文件是否存在
+  8. 全库相对链接是否可达
+  9. 卡片里 `assets/<ID>/...` 引用是否存在
+ 10. 提醒：文档里写死"N 张卡"这类数量（会随库增长而失真）
 
 用法
     python scripts/check_cases.py            # 在 skill 根目录运行
@@ -213,6 +217,90 @@ def check_assets(found):
                 err("%s：引用素材不存在 -> cases/%s" % (name, ref))
 
 
+# 索引状态列必须以受控词开头，后面括号里可以写人话。
+STATUS_TOK = re.compile(r"^[*★\s]*(verified|partial|untested)[\s（(]", re.I)
+COUNT_CLAIM = re.compile(r"\d+\s*(?:张卡|个案例|张卡片)")
+
+
+def index_status(path):
+    """取每行索引的最后一列（状态列）。"""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    for line in read(path).split("\n"):
+        if not line.startswith("|"):
+            continue
+        m = INDEX_LINK.search(line)
+        if not m:
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) >= 3:
+            out[m.group(1)] = cells[-1]
+    return out
+
+
+def check_index_status(found):
+    """索引状态列 vs front matter status —— 这两处最容易各写各的。"""
+    by_id = {fm.get("id"): fm for fm in found.values()}
+    for label, path in (("cases/README.md", INDEX_ZH), ("cases/README.en.md", INDEX_EN)):
+        for cid, cell in index_status(path).items():
+            fm = by_id.get(cid)
+            if fm is None:
+                continue
+            m = STATUS_TOK.match(cell)
+            if not m:
+                err("%s：%s 的状态列必须以 verified / partial / untested 开头"
+                    "（后面可跟括号说明），当前 %r" % (label, cid, cell))
+                continue
+            if m.group(1).lower() != str(fm.get("status", "")).lower():
+                err("%s：%s 索引状态是 %r，但卡片 front matter 写的是 %r"
+                    % (label, cid, m.group(1).lower(), fm.get("status")))
+
+
+def check_registration():
+    """登记闭环：没被登记的文件，下一个人等于它不存在。"""
+    skill_path = os.path.join(ROOT, "SKILL.md")
+    if not os.path.exists(skill_path):
+        err("缺少 SKILL.md")
+        return
+    skill = read(skill_path)
+
+    ref_dir = os.path.join(ROOT, "references")
+    if os.path.isdir(ref_dir):
+        for name in sorted(os.listdir(ref_dir)):
+            if name.endswith(".md") and name not in skill:
+                err("references/%s 未在 SKILL.md §12 资源地图登记" % name)
+
+    scr_dir = os.path.join(ROOT, "scripts")
+    if os.path.isdir(scr_dir):
+        for name in sorted(os.listdir(scr_dir)):
+            if name.endswith(".py") and name not in skill:
+                err("scripts/%s 未在 SKILL.md §4.4 脚本清单登记" % name)
+
+    for ref in sorted(set(re.findall(r"`(references/[A-Za-z0-9_\-]+\.md)`", skill))):
+        if not os.path.exists(os.path.join(ROOT, ref)):
+            err("SKILL.md 引用了不存在的 %s" % ref)
+    for ref in sorted(set(re.findall(r"`(scripts/[A-Za-z0-9_\-]+\.py)`", skill))):
+        if not os.path.exists(os.path.join(ROOT, ref)):
+            err("SKILL.md 引用了不存在的 %s" % ref)
+
+
+def check_counts():
+    """写死"N 张卡"会在库长大之后变成假话。"""
+    for base, _dirs, files in os.walk(ROOT):
+        if os.sep + "." in base:
+            continue
+        for f in sorted(files):
+            if not f.endswith(".md"):
+                continue
+            path = os.path.join(base, f)
+            for i, line in enumerate(read(path).split("\n"), 1):
+                m = COUNT_CLAIM.search(line)
+                if m:
+                    warn("%s:%d 写死了数量「%s」，库一扩充就会失真"
+                         % (os.path.relpath(path, ROOT), i, m.group(0)))
+
+
 def check_templates():
     for tmpl in ("_TEMPLATE.md", "_TEMPLATE.en.md"):
         path = os.path.join(CASES, tmpl)
@@ -241,6 +329,9 @@ def main():
     check_reuse(found)
     check_prefix(found)
     check_index(found)
+    check_index_status(found)
+    check_registration()
+    check_counts()
     check_links()
     check_assets(found)
     check_templates()

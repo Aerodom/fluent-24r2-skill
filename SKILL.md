@@ -42,6 +42,7 @@ agent_created: true
 | **PyFluent Python** | 同上 `<venv>`（已装 `ansys.fluent.core` 0.42.1）；也可用 ANSYS 自带 CPython |
 | 许可证 | `ANSYSLMD_LICENSE_FILE=1055@localhost`；`AWP_ROOT242` 重装/重启后会丢，脚本用 `os.environ.setdefault` 兜底 |
 | 启动形态 | `fluent.exe 3ddp -gu -t4 -i case.jou > case.log 2>&1` |
+| **已验证版本边界** | **只保证 2024R2 / v242 + Windows x64**。其他版本按未验证处理，先跑 `tests/smoke/`；差异清单见 `references/version-compatibility.md` |
 
 > **占位符约定**：`%AWP_ROOT242%` = ANSYS 安装根目录；`<PY38>` = 任一自带 Pillow 的 Python 3.8+；
 > `<venv>` = 已装 numpy / scipy / matplotlib / h5py 的虚拟环境；`<PROJ>` / `<CASE_DIR>` / `<OUT_DIR>`
@@ -65,6 +66,19 @@ agent_created: true
 | **B 高密度比多相** | 存在相界面，Fr/We 数主导，秒级（液体泄漏、熔体喷溅、自由液面） | **压力基 + VOF（隐式）+ Implicit Body Force**，PISO | s | 1e-4 ~ 5e-3 s |
 | **C 组分输运/扩散** | 无相界面，要的是浓度场（有毒/可燃气体、烟气） | **压力基 + Species Transport + Realizable k-ε** | 十秒~分钟 | 5e-3 ~ 1e-2 s |
 | **D 单相流动/传热** | 无界面、无组分，稳态或慢瞬态（风场、换热、阻力） | 压力基 SIMPLE / Coupled；按需能量与辐射 | 稳态或长瞬态 | 按 CFL |
+
+> ⚠️ **覆盖声明 —— 别把"分类齐了"当成"案例齐了"**
+>
+> 上表四类是**判型框架**，不是案例库覆盖率。案例库的 `class` 目前只有三种取值
+> （`vof-free-surface` / `compressible-shock` / `species-dispersion`），
+> **D 类（单相流动/传热）一张实测卡片都没有**。
+>
+> 判型落到 D 类时：
+> 1. **不要硬套 B 类的 VOF 配方**（多相与单相的网格/格式要求完全不同）；
+> 2. 直接走 §2 + `references/case-setup-checklist.md` 自行选型；
+> 3. P0 口径优先用**解析解**兜底（管道/通道层流 `u_max = 1.5 U_mean`、平板 Blasius、圆管 `f = 64/Re`），
+>    这样即使没有同族卡片也能验证对错；
+> 4. 跑通后**请回写第一张 D 类卡片** —— 这是当前案例库最大的缺口。
 
 ### 四条选型铁律
 
@@ -376,15 +390,27 @@ yes
 | `tui-commands.md` | 全部已验证命令、交互式答案序列、废弃命令对照、VOF/组分启用链路、云图与导出链路 |
 | `case-setup-checklist.md` | 逐面板检查单（三分支：可压缩瞬态 / VOF / 组分输运），每项带"为什么" |
 | `meshing-routes.md` | 网格路线决策树：Fluent Meshing GUI / gmsh 脚本化 / 复用既有网格；CGNS 导入的三个假崩溃；重导网格后 zone ID 重排陷阱 |
-| `troubleshooting.md` | 故障 → 根因 → 处理（A 启动 / B 物理 / C 发散 / D 段错误 / E journal / F 进程 / G 网格 / H 栅格化） |
+| `troubleshooting.md` | 故障 → 根因 → 处理（A 启动 / B 物理 / C 发散 / D 段错误 / E journal / F 进程 / G 网格 / H 栅格化 / I PyFluent 接口 / J 密度基激波 / K 外部网格 SIGSEGV / L 报表返回 None / M 几何单位缩 1000 倍 / N 非 ASCII 路径 / O 网格尺寸单位 / P 体区域是 solid / Q 写文件静默不覆盖） |
 | `auto-resume-and-guard.md` | 长跑启动件、分段续算、看门狗部署、编码陷阱、计划任务闪窗与阻塞式监护 |
 | `offline-h5-postprocessing.md` | ⭐ 离线读 `.h5`：结构路径、CSR 展开、面场口径、`SV_VOF` 语义、退化指标识别、足迹渲染 |
 | `offline-cells-and-species.md` | ⭐ 离线后处理（组分）：网格/场分离、由 `c0/c1` 反算形心体积、质量→摩尔分数、初始化陷阱、`NaN ≠ 0` |
 | `field-export-and-rasterize.md` | 场数据导出 → 切片 → 最近邻 → 阈值 → 去噪 → 宽表/长表 → 逐格校验 |
 | `footprint-contours.md` | 轮廓时序提取：面量→节点量、自由边界沿弧闭合（方向写反会静默自交）、双门槛滤波、shoelace 独立校核、固定顶点重采样 |
 | `pyfluent-vof-sputtering.md` | PyFluent 编程接口层故障：相材料静默失败、register+patch 顺序、6 核 `wta` 崩溃、`node_value` 错位、内存预算 |
+| `s1-foam-slag-vof.md` | 泡沫渣喷溅的完整设置记录：VOF + 能量 + **关表面张力**、多球 register 注入的原始配方、网格分辨不了液块时的取舍 |
+| `version-compatibility.md` | 版本边界：什么算"已验证"、换版本最易变的六处及 10 分钟探针判据、版本策略 |
 | `wbpj-project-generation.md` | ★ 生成"双击即可看结果"的 `.wbpj`：模板名、`DisplayText`、`Import` 用法、可搬移四步法则、两道判据 |
 
 **案例库 `cases/`** —— 见 `cases/README.md` 索引与 `cases/_TEMPLATE.md` 模板；扩充流程见其 §四；加完跑 `python scripts/check_cases.py` 校验。
+
+**冒烟测试 `tests/smoke/`** —— 换版本 / 换机器时先跑它：3D 矩形管道层流 + 解析解判据，
+几分钟内验证"几何→网格→改流体域→拆 zone→认进出口→设边界→求解→取数"整条链路。
+两条判据：**连续性 ≤2%**（对网格不敏感，专抓设置错误）+ **峰值比 ±10%**（对网格敏感）。
+当前状态与实测数字写在 `tests/smoke/README.md`。
+
+跑之前记住三件事，否则会撞上伪装成"格式坏了"的假故障：
+**工作目录必须是纯 ASCII 路径**（中文用户名会让 Meshing 的 CAD 导入器报
+"Error in CAD Import"，措辞完全误导）；**网格尺寸用 STEP 声明单位（毫米）**；
+**体区域建出来是 `solid`，要先改 `fluid`**。
 
 **脚本 `scripts/`** —— 见 §4.4。

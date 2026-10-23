@@ -77,6 +77,14 @@
 
 ## 3. 路线 C：gmsh 脚本化（VOF / 需要精细局部加密时首选）
 
+> ⚠️ **2026-10-23 实测警告：这条路线在本机 Fluent 2024R2 上走不通** ——
+> gmsh 写出的 `.msh`（2.2 ASCII，四边形与三角形都试过）在 `/file/read-case` 时
+> **在 `Building... mesh` 处 SIGSEGV**，CGNS 同样崩，六组对照实验排除了格式/核数/路径/PATH 四个变量。
+> 判据与处置见 `troubleshooting.md` 的 **K 类**。
+> **可行的替代**：gmsh 只生成几何（`.step`），网格交给 Fluent Meshing watertight，
+> 输出原生 `.msh.h5` —— 见 `../tests/smoke/make_mesh.py`（已验证跑通）。
+> 若你的机器上 gmsh 网格能正常导入，本路线仍按下面写法使用。
+
 **适用**：几何规则、可参数化；尤其 VOF 需要**精确控制界面区网格尺寸**。
 
 **为什么 S2 用 gmsh 而不是 Watertight**：Fluent Meshing Watertight 的 GUI 工作流**极难批处理自动化**；gmsh 全参数化可控、可复现、可脚本化。S2 的几何（12×6×8 m 车间 + Ø100 mm 孔 + 弹道管）恰好规则。

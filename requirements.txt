@@ -1,0 +1,22 @@
+# Python dependencies for the *offline* scripts under scripts/.
+#
+# Everything here is only needed to post-process Fluent result files
+# (.cas.h5 / .dat.h5) outside of a Fluent session. None of it is required to
+# build a case or to drive fluent.exe from a journal.
+#
+# Install:
+#   pip install -r requirements.txt
+#
+# Used by:
+#   scripts/rasterize_field_to_grid.py   numpy + scipy
+#   scripts/monitor_to_csv.py            (stdlib only, listed here for symmetry)
+#   scripts/offline h5 readers           h5py
+#
+# NOTE: h5py must be built against the same HDF5 major version that wrote the
+# files. Files written by Ansys 2024R2 (HDF5 1.10/1.12 lineage) read fine with
+# the default PyPI wheels; if you hit "OSError: Unable to open file", do not
+# debug the script — verify h5py/HDF5 compatibility first.
+
+numpy>=1.23
+scipy>=1.9
+h5py>=3.8

@@ -21,22 +21,28 @@
 
 | ID | 名称 | class | 一句话配方 | 网格量级 | 状态 |
 |---|---|---|---|---|---|
-| [L1](L1-molten-shell-leak.md) | 炉壳水套破损致高温熔体泄漏 | `vof-free-surface` | 压力基 + 隐式 VOF + 凝固 + DO 辐射；侧壁 0~3 m 必须 wall | 404k | 实测（含一次误判复盘） |
-| [L2](L2-lance-brick-leak.md) | 氧枪砖烧损致高温熔体泄漏 | `vof-free-surface` | 复用 L1，只改泄漏口位置/形状 | 404k | 未单独实测（L1 同构） |
-| [L3](L3-slag-line-leak.md) | 渣线烧损致高温熔体泄漏 | `vof-free-surface` | 复用 L1，中断续算实测过 | 404k | 部分实测 |
-| [L4](L4-autoclave-acid-leak.md) | 高压釜酸碱溶液泄漏 | `vof-free-surface` | Ø30 mm 孔、40 kg/s、ρ=1200、dt 2e-3、重力沿 Y | 待补 | ★ 实测跑通 |
-| [B1](B1-molten-water-explosion.md) | 熔体泄漏入水致爆炸 | `compressible-shock` | 两阶段：L1 泄漏 → B2 爆炸配方 | 待补 | 未实测（路线推定） |
-| [B2](B2-autoclave-valve-explosion.md) | 高压釜阀门失效压力爆炸 | `compressible-shock` | 密度基 + 理想气体 + 3.6 MPa 表压 patch + dt 5e-4，**关重力** | 待补 | ★ 实测跑通 |
-| [B3](B3-runaway-reaction-explosion.md) | 釜内温压失常反应失控爆炸 | `compressible-shock` | B2 + 反应源项（需外部动力学数据） | 待补 | 未实测 |
-| [B4](B4-vessel-material-failure.md) | 容器材料失效致容器爆炸 | `compressible-shock` | B2 + 失效压力/温度判据；可用 TNT 当量法交叉校核 | 待补 | 未实测 |
-| [S1](S1-foam-slag-splashing.md) | 泡沫渣喷溅 | `vof-free-surface` | 隐式 VOF + 多球 register 注入（**牺牲位配方**）；先算网格能否分辨液块 | **1.63M** | 实测（物理受网格限制） |
-| [S2](S2-tapping-splashing.md) | 放出口喷溅 | `vof-free-surface` | 有限液块 patch + 半域对称 + dt 1e-4 斜坡→5e-4 | 633k | ★ 实测跑通（落点误差 3%） |
-| [G1](G1-roof-flue-leak.md) | 炉顶含 SO₂/As₂O₃ 烟气泄漏 | `species-dispersion` | 组分输运 + 质量流入口（持续源）+ 重气开重力 | 待补 | 未实测 |
-| [G2](G2-offgas-leak.md) | 出烟口烟气泄漏 | `species-dispersion` | 同 G1，源位置不同；As₂O₃ 需 DPM/分相 | 待补 | 未实测 |
-| [G3](G3-autoclave-toxic-gas.md) | 高压釜有毒有害气体泄漏 | `species-dispersion` | 混合相 `{so2, air}`（**air 作差减组分**）+ 呼吸层切片 + 阈值栅格 | 74.8k | ★ 实测跑通 |
+| [L1](L1-molten-shell-leak.md) | 炉壳水套破损致高温熔体泄漏 | `vof-free-surface` | 压力基 + 隐式 VOF + 凝固 + DO 辐射；侧壁 0~3 m 必须 wall | 404k | verified（含一次误判复盘） |
+| [L2](L2-lance-brick-leak.md) | 氧枪砖烧损致高温熔体泄漏 | `vof-free-surface` | 复用 L1，只改泄漏口位置/形状 | 404k | partial（与 L1/L3 同批跑，结果受同一处边界缺陷影响） |
+| [L3](L3-slag-line-leak.md) | 渣线烧损致高温熔体泄漏 | `vof-free-surface` | 复用 L1，中断续算实测过 | 404k | partial（中断后续算，监控 CSV 有重复行） |
+| [L4](L4-autoclave-acid-leak.md) | 高压釜酸碱溶液泄漏 | `vof-free-surface` | Ø30 mm 孔、40 kg/s、ρ=1200、dt 2e-3、重力沿 Y | 未记录 | verified（端到端） |
+| [B1](B1-molten-water-explosion.md) | 熔体泄漏入水致爆炸 | `compressible-shock` | 两阶段：L1 泄漏 → B2 爆炸配方 | 未记录 | untested（路线推定） |
+| [B2](B2-autoclave-valve-explosion.md) | 高压釜阀门失效压力爆炸 | `compressible-shock` | 密度基 + 理想气体 + 3.6 MPa 表压 patch + dt 5e-4，**关重力** | 未记录 | verified（端到端） |
+| [B3](B3-runaway-reaction-explosion.md) | 釜内温压失常反应失控爆炸 | `compressible-shock` | B2 + 反应源项（需外部动力学数据） | 未记录 | untested（路线推定） |
+| [B4](B4-vessel-material-failure.md) | 容器材料失效致容器爆炸 | `compressible-shock` | B2 + 失效压力/温度判据；可用 TNT 当量法交叉校核 | 未记录 | untested（路线推定） |
+| [S1](S1-foam-slag-splashing.md) | 泡沫渣喷溅 | `vof-free-surface` | 隐式 VOF + 多球 register 注入（**牺牲位配方**）；先算网格能否分辨液块 | **1.63M** | verified（物理受网格限制，不可定量） |
+| [S2](S2-tapping-splashing.md) | 放出口喷溅 | `vof-free-surface` | 有限液块 patch + 半域对称 + dt 1e-4 斜坡→5e-4 | 633k | verified（落点误差 3%） |
+| [G1](G1-roof-flue-leak.md) | 炉顶含 SO₂/As₂O₃ 烟气泄漏 | `species-dispersion` | 组分输运 + 质量流入口（持续源）+ 重气开重力 | 未记录 | untested（路线推定） |
+| [G2](G2-offgas-leak.md) | 出烟口烟气泄漏 | `species-dispersion` | 同 G1，源位置不同；As₂O₃ 需 DPM/分相 | 未记录 | untested（路线推定） |
+| [G3](G3-autoclave-toxic-gas.md) | 高压釜有毒有害气体泄漏 | `species-dispersion` | 混合相 `{so2, air}`（**air 作差减组分**）+ 呼吸层切片 + 阈值栅格 | 74.8k | verified（端到端） |
 
-`class` 取值：`compressible-shock` / `vof-free-surface` / `species-dispersion` / `single-phase`。
+`class` 取值：`compressible-shock` / `vof-free-surface` / `species-dispersion` / `single-phase`
+（**`single-phase` 目前一张卡都没有** —— 判型落到它时按 `../SKILL.md` §2 的覆盖声明走，别硬套多相配方）。
 要新增取值，先想清楚它与现有四类在**主导机制**上是否真的不同；只是"多一台设备"就复用现有 class。
+
+> **状态列口径**：必须以受控词 `verified` / `partial` / `untested` 开头，括号里写给人看的细节；
+> 卡片 front matter 的 `status` 必须与之一致 —— `scripts/check_cases.py` 会强制对账。
+> **`未记录`** 表示"这张卡确实没记网格量级"，不是"待补任务"：**不要用它做规模估算**，
+> 需要这个数就回原始算例重新数一遍。
 
 ## 三、卡片约定
 

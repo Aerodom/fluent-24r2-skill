@@ -43,6 +43,7 @@ Two principles run through the whole document:
 | **PyFluent Python** | Same `<venv>` (has `ansys.fluent.core` 0.42.1); the ANSYS-bundled CPython also works |
 | License | `ANSYSLMD_LICENSE_FILE=1055@localhost`; `AWP_ROOT242` is lost after reinstall/reboot — guard scripts with `os.environ.setdefault` |
 | Launch form | `fluent.exe 3ddp -gu -t4 -i case.jou > case.log 2>&1` |
+| **Verified version boundary** | **Only 2024R2 / v242 on Windows x64 is guaranteed.** Treat any other release as unverified — run `tests/smoke/` first; the difference list is in `references/version-compatibility.md` |
 
 > **Placeholder convention**: `%AWP_ROOT242%` = ANSYS install root; `<PY38>` = any Python 3.8+ shipping Pillow;
 > `<venv>` = a virtualenv with numpy / scipy / matplotlib / h5py; `<PROJ>` / `<CASE_DIR>` / `<OUT_DIR>`
@@ -377,7 +378,7 @@ The full table (six categories: autosave / resume / memory / processes / multiph
 | `tui-commands.md` | All verified commands, interactive answer sequences, deprecated-command table, VOF/species enabling chains, contour and export chains |
 | `case-setup-checklist.md` | Panel-by-panel checklist (three branches: compressible transient / VOF / species transport), every item with a "why" |
 | `meshing-routes.md` | Meshing route decision tree: Fluent Meshing GUI / scripted gmsh / reuse an existing mesh; the three fake CGNS import crashes; the zone-ID reshuffle trap after re-importing a mesh |
-| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization) |
+| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization / I PyFluent API / J density-based shock / K external-mesh SIGSEGV / L reports returning `None` / M geometry shrunk 1000× / N non-ASCII path / O mesh-size unit / P `solid` volume region / Q silent non-overwrite) |
 | `auto-resume-and-guard.md` | Long-run launcher, segmented resume, watchdog deployment, encoding traps, Task Scheduler flashing windows and blocking supervision |
 | `offline-h5-postprocessing.md` | ⭐ Offline `.h5` reading: structure paths, CSR expansion, face-field basis, `SV_VOF` semantics, degenerate-metric detection, footprint rendering |
 | `offline-cells-and-species.md` | ⭐ Offline post-processing (species): mesh/field separation, back-computing centroids and volumes from `c0/c1`, mass → mole fraction, initialization traps, `NaN ≠ 0` |
@@ -387,5 +388,18 @@ The full table (six categories: autosave / resume / memory / processes / multiph
 | `wbpj-project-generation.md` | ★ Generating a `.wbpj` that "shows results on double-click": template names, `DisplayText`, `Import` usage, the four-step portability rule, two criteria |
 
 **Case library `cases/`** — see the index in `cases/README.md` and the template `cases/_TEMPLATE.md` (English versions: `cases/README.en.md`, `cases/_TEMPLATE.en.md`); the contribution procedure is §4 there; run `python scripts/check_cases.py` after adding a card.
+
+**Smoke test `tests/smoke/`** — run it first whenever the version or the machine changes: a 3D
+rectangular duct in laminar flow judged against an analytical solution, covering the whole chain
+(geometry → mesh → fluid zone → zone split → inlet/outlet → boundary conditions → solve → report)
+in a few minutes. Two criteria: **continuity ≤2 %** (insensitive to the mesh, catches setup
+errors) and **peak-ratio ±10 %** (sensitive to the mesh). Current status and measured numbers
+are in `tests/smoke/README.md`.
+
+Three things to remember before running it, or you will hit fake failures that look like
+"the format is broken": **the working directory must be a pure-ASCII path** (a Chinese user path
+makes the Meshing CAD importer report "Error in CAD Import", which is completely misleading);
+**mesh sizes are expressed in the unit the STEP file declares (millimetres)**; and **the volume
+region is created as `solid` and must be switched to `fluid` first**.
 
 **Scripts `scripts/`** — see §4.4.
