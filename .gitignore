@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# 本地敏感词表（scripts/audit_sensitive.py 会读取；不要提交）
+scripts/audit_terms.local.txt
+
+# 输出与临时产物
+*.log
+_out/
