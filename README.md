@@ -25,13 +25,14 @@
 
 ```bash
 # 用户级（对所有项目生效）
-git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-skill
+git clone <repo-url> "<用户级技能目录>/fluent-24r2-skill"
 
 # 或项目级
-git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-skill
+git clone <repo-url> "<项目根>/<项目级技能目录>/fluent-24r2-skill"
 ```
 
-Windows 下的默认路径是 `C:\Users\<用户名>\.workbuddy\skills\fluent-24r2-skill`。
+目录名保持 `fluent-24r2-skill`。装载目录的位置由所用 agent 客户端决定（用户级 / 项目级各一），
+装好后重启会话或重新加载技能列表即可。
 
 装好后，涉及 journal / PyFluent / 后处理 / `.wbpj` / Fluent 故障排查的任务会自动命中本 skill。
 

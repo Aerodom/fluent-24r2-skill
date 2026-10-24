@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""发布前敏感信息体检：个人信息 / 本机绝对路径 / 内网地址 / 组织名。
+"""发布前敏感信息体检：个人信息 / 本机绝对路径 / 内网地址 / 组织名 / 宿主品牌词。
 
 用法
     python scripts/audit_sensitive.py            # 扫描全库
@@ -35,11 +35,17 @@ EXTS = {".md", ".py", ".jou", ".json", ".yml", ".yaml", ".txt", ".sh", ".wbjn", 
 SKIP_DIRS = {".git", "__pycache__", "node_modules", ".venv"}
 
 # ---------------------------------------------------------------- ERROR 规则
+# 宿主客户端品牌词：本仓库对外分发，正文一律用「agent 客户端 / 技能目录」这类中性说法，
+# 不出现具体产品名。正则拆成两段拼接，是让本脚本自身不含该字样 ——
+# 否则体检脚本自己就成了残留源（脚本自身本已跳过，但被别处引用时仍会漏）。
+HOST_BRAND = re.compile("work" + "buddy", re.IGNORECASE)
+
 ERROR_RULES = [
     ("盘符绝对路径", re.compile(r"(?<![\w])[A-Za-z]:[\\/]")),
     ("非系统盘 msys 路径", re.compile(r"(?<![\w])/[defgh]/")),
     ("用户目录硬编码", re.compile(r"C:[\\/]Users[\\/](?!<)")),
     ("邮箱", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
+    ("宿主客户端品牌名", HOST_BRAND),
 ]
 
 # 允许的例外（文档里必须出现的示例值）

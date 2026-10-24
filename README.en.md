@@ -26,13 +26,15 @@ triage report (no Fluent launch, no licence, a few seconds), telling you which s
 
 ```bash
 # User level (applies to all projects)
-git clone <repo-url> ~/.workbuddy/skills/fluent-24r2-skill
+git clone <repo-url> "<user-level skills dir>/fluent-24r2-skill"
 
 # Or project level
-git clone <repo-url> <project>/.workbuddy/skills/fluent-24r2-skill
+git clone <repo-url> "<project root>/<project-level skills dir>/fluent-24r2-skill"
 ```
 
-On Windows the default user-level path is `C:\Users\<user>\.workbuddy\skills\fluent-24r2-skill`.
+Keep the directory name `fluent-24r2-skill`. Where exactly the loader looks for skills is up to your
+agent client (one user-level and one project-level location); restart the session or reload the skill
+list after installing.
 
 Once installed, tasks involving journals / PyFluent / post-processing / `.wbpj` / Fluent troubleshooting will match this skill automatically.
 

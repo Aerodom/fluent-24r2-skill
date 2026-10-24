@@ -31,6 +31,17 @@ the case library and the workflow sections may both change.
   by someone else" not being a reason to skip gates.
 - README (zh + en) — "taking over a half-finished case" added to the problem list.
 
+### Changed
+
+- **Vendor-neutral wording.** The skill ships as a standalone repo, so it no longer
+  names the host agent client anywhere. Install instructions now read
+  `<user-level skills dir>` / `<project-level skills dir>` instead of a
+  product-specific home path, and the memory-budget formula says
+  "agent client ~2.3 G" instead of the product name.
+- `scripts/audit_sensitive.py` gained a **host-brand ERROR rule**, so the vendor name
+  cannot creep back in. The regex is assembled from two fragments on purpose — the
+  audit script itself must not contain the word it bans.
+
 ### Fixed
 
 - **Residual arrays were being read with the wrong column semantics.** In
