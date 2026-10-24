@@ -7,6 +7,46 @@ the case library and the workflow sections may both change.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Taking over an existing case, at any intermediate state** — the entry point in
+  `SKILL.md` §0 is now a two-door branch (build from scratch / take over). Until now
+  the whole workflow assumed a clean start, but the common real request is "here is a
+  case, modify it": geometry only, mesh only, boundaries set but never run, ran but
+  diverged.
+- `scripts/inspect_case.py` — **offline intake triage**. Reads `.cas.h5` / `.dat.h5` /
+  `.msh.h5` with h5py (no Fluent launch, no licence, seconds) and reports eight
+  sections: assets, identity, mesh, zone inventory, fields and time, convergence
+  evidence, warnings, **suggested resume stage**. Accepts files or a directory,
+  `--json`, `--out`.
+- `references/intake-existing-case.md` — the playbook: artifact→stage table, the five
+  questions to answer before touching anything, an eight-step diagnostic order for
+  "it ran but did not work", six traps (version rollback, UDF, hardcoded paths,
+  zone-ID reindexing, zone-type edits invalidating data, meaningless zone names), a
+  "what you want to change → which stage to go back to" table, and the three iron
+  rules (originals read-only / never rebuild / evidence before edits).
+- `SKILL.md` §11 rule 10 — taking-over discipline, including "the first half was done
+  by someone else" not being a reason to skip gates.
+- README (zh + en) — "taking over a half-finished case" added to the problem list.
+
+### Fixed
+
+- **Residual arrays were being read with the wrong column semantics.** In
+  `results/residuals/<eq>/data` the four columns are
+  `[raw residual, normalisation factor, 0, 0]`, and Fluent prints their **quotient**.
+  Verified digit-for-digit against a transcript:
+  `6.953693e-07 / 7.411549e-04 = 9.3822e-04` vs `39  9.3822e-04`.
+  Reading column 0 as "the residual" understates it by three orders of magnitude —
+  i.e. it reports "nicely converged" for a run that is not. See `troubleshooting.md` S.
+- **`cellType` is not `zoneType`.** `cellType` is the element shape code (polyhedral = 7
+  on this machine); the fluid/solid region type lives in `zoneType`. A `.msh.h5` carries
+  `cellType` only — that is a normal "not yet taken over by the solver" state, not an
+  "unknown region type". Conflating them produced a false "everything is solid" warning.
+
+---
+
 ## [0.1.0] — 2026-10-23
 
 First public release. Everything below is a **snapshot**, not an iteration:

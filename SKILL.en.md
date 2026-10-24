@@ -20,13 +20,51 @@ Two principles run through the whole document:
 
 ---
 
-## 0 Entry point: locate the case in three steps
+## 0 Entry point: identify the door first, then locate the case
+
+**There are two doors.** Identify which one you are at before anything else — it determines the
+order of every following step.
+
+| Door | Trigger | First action |
+|---|---|---|
+| **A From scratch** | You only have a requirement / only geometry / "build it from nothing" | Go to 0.1 |
+| **B Take over an existing case** | Someone hands you a `.cas` / `.dat` / `.msh` / `.wbpj` / journal / a pile of logs and says "modify this" | Do **0.0 (intake)** first, then fix the anchor |
+
+### 0.0 Door B: take inventory before opening Fluent
+
+```bash
+<venv>/Scripts/python.exe scripts/inspect_case.py <case dir> --out triage.md
+```
+
+**Reads `.h5` offline** (h5py): no Fluent launch, no licence, a report in seconds. Eight sections:
+assets / identity / mesh / zone inventory / fields and time / convergence evidence / warnings /
+**suggested continuation stage**.
+
+The last section names the stage to resume from (**P0–P7**). The full playbook is
+`references/intake-existing-case.md`: artifact→stage table, the five questions you must answer
+before touching anything, an eight-step diagnostic order for "it ran but it did not work",
+six high-frequency traps, and a "what you want to change → which stage to go back to" table.
+
+**Three iron rules for taking over:**
+
+1. **The original is read-only.** Copy and rename first; never touch the original file or directory
+   name (the case stores internal paths — renaming breaks the case/data pairing).
+2. **Do not rebuild.** Change only the one place proven defective by evidence. Rebuilding throws
+   away every physical judgement the other person made.
+3. **Evidence order**: `.trn` transcript > residual history > file timeline > **what the other
+   person told you**. "I think I set it" is not evidence; transcripts do not misremember.
+
+> ⚠️ **A bare `.dat.h5` is the worst case**: in 2024R2 the mesh lives in the `.cas.h5`, so without
+> the case you cannot even post-process offline. The only correct move is to **ask for the case
+> back**, not to hack at the data file.
+
+### 0.1–0.3 Both doors converge here
 
 | Step | Action | Criterion / exit |
 |---|---|---|
-| **0.1 Classify the physics** | Map the request onto A/B/C/D in the §2 table | You can state "dominant mechanism + time scale + presence of a phase interface" in one sentence |
+| **0.1 Classify the physics** | Map the request onto A/B/C/D in the §2 table | You can state "dominant mechanism + time scale + presence of a phase interface" in one sentence<br>**When taking over, this may already have been done by the other person — verify it, do not trust it** |
 | **0.2 Search the case library** | Open `cases/README.md`, search by `class` + keyword; read the matching card | **Hit** → follow the card, changing only what its §13 "Reuse and differences" lists<br>**No hit** → select models yourself via §2 + `references/case-setup-checklist.md` |
-| **0.3 Run the stage workflow** | Advance through the 8 stages of §3, each with an explicit gate | Do not advance past a failed gate |
+| **0.3 Run the stage workflow** | Advance through the 8 stages of §3, each with an explicit gate | Do not advance past a failed gate. **When taking over, start at the anchor stage, but the gates before it still have to be verified** |
 
 > ★ **Write-back duty**: once a new case runs, you must write a card into `cases/` following `cases/_TEMPLATE.md` and add a row to the index in `cases/README.md`. The value of a case library equals how many times it has been written back to.
 
@@ -147,6 +185,7 @@ Launch arguments:
 
 | Script | Purpose |
 |---|---|
+| `scripts/inspect_case.py` | **Intake triage**: reads `.cas.h5` / `.dat.h5` / `.msh.h5` offline and reports mesh / zones / fields / residuals / pairing warnings plus the suggested resume stage. No Fluent launch, no licence (§0.0) |
 | `scripts/run_fluent_journal.py` | Run a journal, persist the log, echo key lines and the exit code |
 | `scripts/make_render_journal.py` | Journal that renders multi-frame contours serially (built-in re-render, fixed colour scale) |
 | `scripts/export_field_journal.py` | Journal that batch-exports multi-frame, multi-variable field data (`.xyz`) |
@@ -366,6 +405,7 @@ The full table (six categories: autosave / resume / memory / processes / multiph
 7. **Numerical compromises must be labelled.** Lowering the density ratio, turning off surface tension, equivalent fog blobs, sub-grid bases — all acceptable, but **the delivery document must state "this is an engineering assumption"**. Never package it as a physical conclusion.
 8. **Check magnitudes against the baseline first.** If results are off the baseline magnitude, report "off". **Do not invent a physical explanation to rationalize it.**
 9. **Every addition must be registered.** A new `references/*.md` or `scripts/*.py` must get a row in §12 (resource map) / §4.4 (script inventory); a new case card must pass `scripts/check_cases.py` with zero errors. **A file nobody registered does not exist for the next person.**
+10. **Taking over: inventory first, originals read-only, never rebuild** (§0.0). When handed someone else's case, run `scripts/inspect_case.py` to fix the anchor instead of picking a spot and editing; put every change on a copy; change only what evidence proves defective and record the rest as "kept as-is". **"The first half was done by someone else" is not a reason to skip gates — precisely because it never passed your gates, it needs verifying.**
 
 ---
 
@@ -376,9 +416,10 @@ The full table (six categories: autosave / resume / memory / processes / multiph
 | File | Content |
 |---|---|
 | `tui-commands.md` | All verified commands, interactive answer sequences, deprecated-command table, VOF/species enabling chains, contour and export chains |
+| `intake-existing-case.md` | **Taking over someone else's case**: artifact→stage table, the five questions you must answer, an eight-step diagnostic order for "it ran but did not work", six traps, "what you want to change → which stage", originals read-only and "never rebuild" |
 | `case-setup-checklist.md` | Panel-by-panel checklist (three branches: compressible transient / VOF / species transport), every item with a "why" |
 | `meshing-routes.md` | Meshing route decision tree: Fluent Meshing GUI / scripted gmsh / reuse an existing mesh; the three fake CGNS import crashes; the zone-ID reshuffle trap after re-importing a mesh |
-| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization / I PyFluent API / J density-based shock / K external-mesh SIGSEGV / L reports returning `None` / M geometry shrunk 1000× / N non-ASCII path / O mesh-size unit / P `solid` volume region / Q silent non-overwrite / R argument names and value shapes) |
+| `troubleshooting.md` | Symptom → root cause → fix (A launch / B physics / C divergence / D segfault / E journal / F processes / G mesh / H rasterization / I PyFluent API / J density-based shock / K external-mesh SIGSEGV / L reports returning `None` / M geometry shrunk 1000× / N non-ASCII path / O mesh-size unit / P `solid` volume region / Q silent non-overwrite / R argument names and value shapes / S offline `.h5` semantics: residuals 1000× too small, `cellType` mistaken for `zoneType`) |
 | `auto-resume-and-guard.md` | Long-run launcher, segmented resume, watchdog deployment, encoding traps, Task Scheduler flashing windows and blocking supervision |
 | `offline-h5-postprocessing.md` | ⭐ Offline `.h5` reading: structure paths, CSR expansion, face-field basis, `SV_VOF` semantics, degenerate-metric detection, footprint rendering |
 | `offline-cells-and-species.md` | ⭐ Offline post-processing (species): mesh/field separation, back-computing centroids and volumes from `c0/c1`, mass → mole fraction, initialization traps, `NaN ≠ 0` |

@@ -13,9 +13,14 @@ When you drive Fluent from scripts or the command line, the expensive part is no
 - **The TUI disagrees with the documentation** — commands deprecated, interactive prompts swallowing journal lines, the run stopping on `invalid command`;
 - **Silent failures** — phase material not assigned, registers not marked, `node_value` indexing misaligned, initialization filling the ambient with pure nitrogen — none of these report an error;
 - **Long runs being interrupted** — the session teardown kills the process tree, autosave cannot resume, monitor CSVs double-count after a resume;
-- **Incomplete delivery** — nothing but `cas.h5`/`dat.h5`, which the user cannot open or modify.
+- **Incomplete delivery** — nothing but `cas.h5`/`dat.h5`, which the user cannot open or modify;
+- **Taking over someone else's half-finished case** — geometry only / mesh only / boundaries set but
+  never run / ran but crashed. Any intermediate state is possible. **Take inventory before editing**;
+  do not rebuild from scratch, and do not edit the original in place.
 
 This skill turns those pitfalls into a **staged workflow + gate criteria + a case library**.
+Taking over has its own entry point: `scripts/inspect_case.py` reads `.h5` offline and emits a
+triage report (no Fluent launch, no licence, a few seconds), telling you which stage to resume from.
 
 ## Install
 
