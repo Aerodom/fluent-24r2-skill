@@ -26,10 +26,10 @@ triage report (no Fluent launch, no licence, a few seconds), telling you which s
 
 ```bash
 # User level (applies to all projects)
-git clone <repo-url> "<user-level skills dir>/fluent-24r2-skill"
+git clone https://github.com/Aerodom/fluent-24r2-skill.git "<user-level skills dir>/fluent-24r2-skill"
 
 # Or project level
-git clone <repo-url> "<project root>/<project-level skills dir>/fluent-24r2-skill"
+git clone https://github.com/Aerodom/fluent-24r2-skill.git "<project root>/<project-level skills dir>/fluent-24r2-skill"
 ```
 
 Keep the directory name `fluent-24r2-skill`. Where exactly the loader looks for skills is up to your
@@ -159,7 +159,7 @@ python scripts/audit_sensitive.py --strict
 
 ## License
 
-[MIT](LICENSE) © 2026 Yan
+[MIT](LICENSE) © 2026 Aero
 
 Use it, fork it, modify it, ship it inside a commercial project — just keep the copyright notice.
 

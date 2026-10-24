@@ -25,10 +25,10 @@
 
 ```bash
 # 用户级（对所有项目生效）
-git clone <repo-url> "<用户级技能目录>/fluent-24r2-skill"
+git clone https://github.com/Aerodom/fluent-24r2-skill.git "<用户级技能目录>/fluent-24r2-skill"
 
 # 或项目级
-git clone <repo-url> "<项目根>/<项目级技能目录>/fluent-24r2-skill"
+git clone https://github.com/Aerodom/fluent-24r2-skill.git "<项目根>/<项目级技能目录>/fluent-24r2-skill"
 ```
 
 目录名保持 `fluent-24r2-skill`。装载目录的位置由所用 agent 客户端决定（用户级 / 项目级各一），
@@ -153,7 +153,7 @@ python scripts/audit_sensitive.py --strict
 
 ## 许可证
 
-[MIT](LICENSE) © 2026 Yan
+[MIT](LICENSE) © 2026 Aero
 
 可以自由使用、修改、商用、闭源分发，只需保留版权声明。
 

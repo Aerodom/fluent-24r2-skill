@@ -41,6 +41,10 @@ the case library and the workflow sections may both change.
 - `scripts/audit_sensitive.py` gained a **host-brand ERROR rule**, so the vendor name
   cannot creep back in. The regex is assembled from two fragments on purpose — the
   audit script itself must not contain the word it bans.
+- **Author and copyright holder renamed to Aero** (`LICENSE`, both READMEs). All
+  pre-existing commits were re-authored so the whole history carries one identity.
+  The repo now lives at `github.com/Aerodom/fluent-24r2-skill`, and the install
+  commands in both READMEs use that real URL instead of a placeholder.
 
 ### Fixed
 
@@ -102,7 +106,7 @@ into a general workflow + a case library for publication.
   problem is caught *before* Fluent spends a minute starting up.
 - `references/version-compatibility.md` — what is actually verified
   (2024R2 / v242) and what must be re-tested on any other release.
-- `LICENSE` — MIT, © 2026 Yan. Plus a disclaimer in both READMEs:
+- `LICENSE` — MIT, © 2026 Aero. Plus a disclaimer in both READMEs:
   not affiliated with Ansys, Inc.; case numbers are recipe references only.
 
 ### Changed
